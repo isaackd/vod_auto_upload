@@ -24,7 +24,7 @@ def after_server_start(authorization_url):
 client_id = config["youtube_client_id"]
 client_secret = config["youtube_client_secret"]
 
-redirect_host = config["redirect_host"] + str(config["redirect_port"])
+redirect_host = config["redirect_host"] + ":" + str(config["redirect_port"])
 redirect_uri = f"http://{redirect_host}/submit_credentials"
 
 # OAuth endpoints given in the Google API documentation
