@@ -94,7 +94,7 @@ if __name__ == "__main__":
     # google = init_google_session()
 
     # if google:
-    #     test_upload_vid(google, video_path)
+    #     test_upload_vid(google, "vid.mp4")
     # else:
     #     print("Unable to get initialize a Google session")
 
