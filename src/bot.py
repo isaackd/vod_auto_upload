@@ -9,7 +9,7 @@ from youtube_auth import init_google_session
 
 from config import config
 
-DRY_RUN_ENABLED = "--dry-run" in sys.argv
+DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
 
 def shorten_video_title(video_title):
     if " - !songrequest" in video_title:
@@ -156,13 +156,15 @@ if __name__ == "__main__":
         print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
         print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
 
+    root_dir = os.path.dirname(os.path.abspath(__file__ + "/.."))
 
-    save_in_progress_upload("googleapis.com/1232847827381", "../videos/vid.mp4", {
-        "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
-        "description": "",
-        "url": "https://www.twitch.tv/videos/426700335",
-        "id": "426700335"
-    })
+
+    # save_in_progress_upload("googleapis.com/1232847827381", root_dir + "/videos/vid.mp4", {
+    #     "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
+    #     "description": "",
+    #     "url": "https://www.twitch.tv/videos/426700335",
+    #     "id": "426700335"
+    # })
 
     # remove_in_progress_upload("426700335")
 
@@ -170,7 +172,7 @@ if __name__ == "__main__":
     # google = init_google_session()
 
     # if google:
-    #     test_upload_vid(google, "../videos/vid.mp4")
+    #     test_upload_vid(google, root_dir + "/videos/vid.mp4")
     # else:
     #     print("Unable to initialize a Google session")
 

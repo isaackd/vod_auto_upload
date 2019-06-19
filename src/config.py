@@ -41,13 +41,15 @@ DEFAULT_CONFIG = {
     "redirect_port": 32718
 }
 
+root_dir = os.path.dirname(os.path.abspath(__file__ + "/.."))
+
 def create_default_config():
-    with open("../data/config.json", "w") as file:
+    with open(root_dir + "/data/config.json", "w") as file:
         file.write(json.dumps(DEFAULT_CONFIG, indent=4))
 
 def load_config():
-    if os.path.isfile("../data/config.json"):
-        with open("../data/config.json", "r") as config_file:
+    if os.path.isfile(root_dir + "/data/config.json"):
+        with open(root_dir + "/data/config.json", "r") as config_file:
             try:
                 config_dict = json.loads(config_file.read())
                 for key in DEFAULT_CONFIG:
