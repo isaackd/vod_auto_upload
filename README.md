@@ -27,6 +27,3 @@ Automatically upload Twitch VODs to YouTube
 `twitch_client_id`: Twitch application client ID used for retrieving a list of VODs. Can be created/found at the [Twitch Developer Console](https://dev.twitch.tv/console/apps)
 
 `twitch_user_id`: The Twitch user ID of the channel that contains the VODs that local recordings will be checked against
-
-`redirect_host`: The host part of the URL that the YouTube OAuth flow will redirect to
-`redirect_port`: The port part of the URL that the YouTube OAuth flow will redirect to
