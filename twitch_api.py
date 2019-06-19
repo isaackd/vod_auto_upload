@@ -44,7 +44,8 @@ def get_video_duration(video) -> int:
 
 
 if __name__ == '__main__':
+    print(json.dumps(fetch_videos(), indent=4))
     with open("test_data.json", "r") as file:
-        data = json.loads(file.read())["data"]
+        data = json.loads(file.read())
         for video in data:
             print(get_video_duration(video), video["duration"])
