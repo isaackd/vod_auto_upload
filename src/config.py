@@ -34,11 +34,7 @@ DEFAULT_CONFIG = {
 
     "twitch_video_duration_threshold": 3_600,
     "file_modified_start_max_delta": 120,
-    "file_modified_end_max_delta": 1_800,
-
-
-    "redirect_host": "localhost",
-    "redirect_port": 32718
+    "file_modified_end_max_delta": 1_800
 }
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
