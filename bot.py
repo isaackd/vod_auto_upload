@@ -96,7 +96,7 @@ if __name__ == "__main__":
     # if google:
     #     test_upload_vid(google, "vid.mp4")
     # else:
-    #     print("Unable to get initialize a Google session")
+    #     print("Unable to initialize a Google session")
 
 
     print("config:", config)
