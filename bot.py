@@ -133,7 +133,7 @@ if __name__ == "__main__":
 
             # print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
 
-            # TODO: REMOVE 1 FOR USED FOR TESTING
+            # TODO: REMOVE 1 USED FOR TESTING
             if 1 or file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
 
                 for video in twitch_videos:
