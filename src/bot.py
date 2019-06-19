@@ -9,9 +9,12 @@ from youtube_auth import init_google_session
 
 from config import config
 
-DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
+DRY_RUN_ENABLED = "--dry-run" in sys.argv
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
+
+STATE_FILE_PATH = ROOT_DIR + "/data/state.json"
+CONFIG_FILE_PATH = ROOT_DIR + "/data/config.json"
 
 def shorten_video_title(video_title):
     if " - !songrequest" in video_title:
@@ -34,8 +37,8 @@ def save_in_progress_upload(upload_url, video_path, twitch_vod):
 
         file.write(json.dumps(contents, indent=4))
 
-    if os.path.isfile(ROOT_DIR + "/data/state.json"):
-        with open(ROOT_DIR + "/data/state.json", "r+") as file:
+    if os.path.isfile(STATE_FILE_PATH):
+        with open(STATE_FILE_PATH, "r+", encoding="utf8") as file:
             try:
                 contents = json.loads(file.read())
 
@@ -55,15 +58,15 @@ def save_in_progress_upload(upload_url, video_path, twitch_vod):
                 file.seek(0)
                 create_json_structure(file)
     else:
-        with open(ROOT_DIR + "/data/state.json", "w") as file:
+        with open(STATE_FILE_PATH, "w", encoding="utf8") as file:
             create_json_structure(file)
 
 def remove_in_progress_upload(twitch_vod_id) -> bool:
-    if os.path.isfile(ROOT_DIR + "/data/state.json"):
-        with open(ROOT_DIR + "/data/state.json", "r+") as file:
+    if os.path.isfile(STATE_FILE_PATH):
+        with open(STATE_FILE_PATH, "r+", encoding="utf8") as file:
             try:
                 contents = json.loads(file.read())
-                del contents[twitch_vod_id]
+                contents.pop(twitch_vod_id, None)
 
                 file.truncate(0)
                 file.seek(0)
@@ -109,20 +112,22 @@ def upload_video(google_session, video_path: str, twitch_video: dict, progress_c
     if not DRY_RUN_ENABLED:
         try:
             resumable_upload, video = start_resumable_download(google_session, video_path, video_meta, upload_url=upload_url)
-            save_in_progress_upload(resumable_upload.upload_url, twitch_video["id"])
+            save_in_progress_upload(resumable_upload.upload_url, video_path, twitch_video)
             response = resumable_upload.upload(progress_callback)
             video.close()
             return response
         except ResumableUpload.ReachedRetryMax as e:
             print(e)
             print("Reached the maximum amount of retries")
-
         finally:
-            remove_in_progress_upload(resumable_upload.upload_url, twitch_video["id"])
+            remove_in_progress_upload(twitch_video["id"])
     else:
         print(f"[DRY RUN] Video would now be uploaded in a real run:\n    video path: {video_path}\n    twitch video: {twitch_video}\n    upload url: {upload_url}")
+        save_in_progress_upload("https://example.org", video_path, twitch_video)
+        time.sleep(5)
+        remove_in_progress_upload(twitch_video["id"])
 
-def test_upload_vid(google_session, video_path: str):
+def quick_upload_video(google_session, video_path: str, video_meta=None, upload_url=None):
 
     file_size = os.path.getsize(video_path)
     def prog(status, response, uploaded_bytes):
@@ -130,12 +135,15 @@ def test_upload_vid(google_session, video_path: str):
         print(f"[PROGRESS] status: {status} {prog:.2f}%")
         # print(f"[PROGRESS] status: {status} {response.headers} {response.content}\nREQUEST HEADERS: {response.request.headers}")
 
-    res = upload_video(google, video_path, {
-        "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
-        "description": "",
-        "url": "https://www.twitch.tv/videos/426700335",
-        "id": "426700335"
-    }, prog)
+    if not video_meta:
+        video_meta = {
+            "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
+            "description": "",
+            "url": "https://www.twitch.tv/videos/426700335",
+            "id": "426700335"
+        }
+
+    res = upload_video(google, video_path, video_meta, progress_callback=prog, upload_url=upload_url)
     if res and res.status_code in (200, 201):
 
         res_json = res.json()
@@ -151,8 +159,21 @@ def test_upload_vid(google_session, video_path: str):
     else:
         print("Unable to upload video:", video_path)
 
-def check_in_progress_uploads():
-    if os.path.isfile("")
+def check_in_progress_uploads(google_session):
+    if os.path.isfile(STATE_FILE_PATH):
+        with open(STATE_FILE_PATH, "r", encoding="utf8") as file:
+            contents = json.loads(file.read())
+
+            for twitch_video_id in contents:
+                entry = contents[twitch_video_id]
+                file_path = entry["video_path"]
+                if os.path.isfile(file_path):
+                    print(f"Resuming incomplete upload: {twitch_video_id} ({file_path})")
+                    quick_upload_video(google_session, file_path, entry["twitch_vod"], entry["upload_url"])
+                else:
+                    print(f"File in incomplete upload no longer exists: {twitch_video_id} ({file_path})")
+
+
 
 if __name__ == "__main__":
 
@@ -160,8 +181,7 @@ if __name__ == "__main__":
         print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
         print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
 
-
-    # save_in_progress_upload("googleapis.com/1232847827381", root_dir + "/videos/vid.mp4", {
+    # save_in_progress_upload("googleapis.com/1232847827381", ROOT_DIR + "/videos/vid.mp4", {
     #     "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
     #     "description": "",
     #     "url": "https://www.twitch.tv/videos/426700335",
@@ -171,10 +191,12 @@ if __name__ == "__main__":
     # remove_in_progress_upload("426700335")
 
 
-    # google = init_google_session()
+    google = init_google_session()
+
+    check_in_progress_uploads(google)
 
     # if google:
-    #     test_upload_vid(google, root_dir + "/videos/vid.mp4")
+    #     quick_upload_video(google, ROOT_DIR + "/videos/vid.mp4")
     # else:
     #     print("Unable to initialize a Google session")
 
@@ -189,11 +211,11 @@ if __name__ == "__main__":
     # if not os.path.isdir(folder_to_move_completed_uploads):
     #     os.mkdir(folder_to_move_completed_uploads)
 
-    # if not os.path.isfile("config.json"):
-    #     with open("config.json", "w") as file:
+    # if not os.path.isfile(CONFIG_FILE_PATH):
+    #     with open(CONFIG_FILE_PATH, "w", encoding="utf8") as file:
     #         file.write(json.dumps(DEFAULT_CONFIG, indent=4))
 
-    # videos_needing_upload = set()
+    # videos_needing_upload = {}
 
     # twitch_videos = [
     #     vid for vid in twitch_api.fetch_videos() 
@@ -216,7 +238,7 @@ if __name__ == "__main__":
 
     #         # print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
             
-    #         if file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
+    #         if 1 or file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
 
     #             for video in twitch_videos:
     #                 vid_tstamp = twitch_api.get_video_timestamp(video)
@@ -226,11 +248,14 @@ if __name__ == "__main__":
     #                 if file_modified_time >= (vid_tstamp - config["file_modified_start_max_delta"]) and file_modified_time < (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"])):
     #                     print("adding video", file_path, "with clip", video["title"])
     #                     if not file_path in videos_needing_upload:
-    #                         videos_needing_upload.add(file_path)
+    #                         videos_needing_upload[file_path] = video
     #                         break
 
 
     #     print("Files that should be uploaded:", videos_needing_upload)
+    #     for video_path in videos_needing_upload:
+    #         video_meta = videos_needing_upload[video_path]
+    #         quick_upload_video(google, video_path, video_meta)
     #     print()
 
     #     time.sleep(check_interval)
