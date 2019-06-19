@@ -11,6 +11,8 @@ from config import config
 
 DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
 
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
+
 def shorten_video_title(video_title):
     if " - !songrequest" in video_title:
         video_title = video_title.split(" - !songrequest")[0]
@@ -32,8 +34,8 @@ def save_in_progress_upload(upload_url, video_path, twitch_vod):
 
         file.write(json.dumps(contents, indent=4))
 
-    if os.path.isfile("../data/state.json"):
-        with open("../data/state.json", "r+") as file:
+    if os.path.isfile(ROOT_DIR + "/data/state.json"):
+        with open(ROOT_DIR + "/data/state.json", "r+") as file:
             try:
                 contents = json.loads(file.read())
 
@@ -53,12 +55,12 @@ def save_in_progress_upload(upload_url, video_path, twitch_vod):
                 file.seek(0)
                 create_json_structure(file)
     else:
-        with open("../data/state.json", "w") as file:
+        with open(ROOT_DIR + "/data/state.json", "w") as file:
             create_json_structure(file)
 
 def remove_in_progress_upload(twitch_vod_id) -> bool:
-    if os.path.isfile("../data/state.json"):
-        with open("../data/state.json", "r+") as file:
+    if os.path.isfile(ROOT_DIR + "/data/state.json"):
+        with open(ROOT_DIR + "/data/state.json", "r+") as file:
             try:
                 contents = json.loads(file.read())
                 del contents[twitch_vod_id]
@@ -149,14 +151,14 @@ def test_upload_vid(google_session, video_path: str):
     else:
         print("Unable to upload video:", video_path)
 
+def check_in_progress_uploads():
+    if os.path.isfile("")
 
 if __name__ == "__main__":
 
     if DRY_RUN_ENABLED:
         print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
         print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
-
-    root_dir = os.path.dirname(os.path.abspath(__file__ + "/.."))
 
 
     # save_in_progress_upload("googleapis.com/1232847827381", root_dir + "/videos/vid.mp4", {
