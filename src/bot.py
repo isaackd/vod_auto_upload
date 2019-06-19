@@ -20,20 +20,28 @@ def shorten_video_title(video_title):
 
     return video_title
 
-def save_in_progress_upload(upload_url, twitch_vod_id):
+def save_in_progress_upload(upload_url, video_path, twitch_vod):
 
     def create_json_structure(file):
         contents = {}
-        contents[twitch_vod_id] = upload_url
+        contents[twitch_vod["id"]] = {
+            "upload_url": upload_url,
+            "video_path": video_path,
+            "twitch_vod": twitch_vod
+        }
 
         file.write(json.dumps(contents, indent=4))
 
-    if os.path.isfile("state.json"):
-        with open("state.json", "r+") as file:
+    if os.path.isfile("../data/state.json"):
+        with open("../data/state.json", "r+") as file:
             try:
                 contents = json.loads(file.read())
 
-                contents[twitch_vod_id] = upload_url
+                contents[twitch_vod["id"]] = {
+                    "upload_url": upload_url,
+                    "video_path": video_path,
+                    "twitch_vod": twitch_vod
+                }
 
                 file.truncate(0)
                 file.seek(0)
@@ -45,19 +53,15 @@ def save_in_progress_upload(upload_url, twitch_vod_id):
                 file.seek(0)
                 create_json_structure(file)
     else:
-        with open("state.json", "w") as file:
+        with open("../data/state.json", "w") as file:
             create_json_structure(file)
 
-def remove_in_progress_upload(upload_url, twitch_vod_id) -> bool:
-    if os.path.isfile("state.json"):
-        with open("state.json", "r+") as file:
+def remove_in_progress_upload(twitch_vod_id) -> bool:
+    if os.path.isfile("../data/state.json"):
+        with open("../data/state.json", "r+") as file:
             try:
                 contents = json.loads(file.read())
-
-                for v_id in contents:
-                    if v_id == twitch_vod_id and contents[v_id] == upload_url:
-                        del contents[v_id]
-                        break
+                del contents[twitch_vod_id]
 
                 file.truncate(0)
                 file.seek(0)
@@ -152,66 +156,77 @@ if __name__ == "__main__":
         print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
         print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
 
+
+    save_in_progress_upload("googleapis.com/1232847827381", "../videos/vid.mp4", {
+        "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
+        "description": "",
+        "url": "https://www.twitch.tv/videos/426700335",
+        "id": "426700335"
+    })
+
+    # remove_in_progress_upload("426700335")
+
+
     # google = init_google_session()
 
     # if google:
-    #     test_upload_vid(google, "vid.mp4")
+    #     test_upload_vid(google, "../videos/vid.mp4")
     # else:
     #     print("Unable to initialize a Google session")
 
 
-    print("config:", config)
+    # print("config:", config)
 
-    folder_to_watch = config["folder_to_watch"]
-    folder_to_move_completed_uploads = config["folder_to_move_completed_uploads"]
+    # folder_to_watch = config["folder_to_watch"]
+    # folder_to_move_completed_uploads = config["folder_to_move_completed_uploads"]
 
-    check_interval = config["check_folder_interval"]
+    # check_interval = config["check_folder_interval"]
 
-    if not os.path.isdir(folder_to_move_completed_uploads):
-        os.mkdir(folder_to_move_completed_uploads)
+    # if not os.path.isdir(folder_to_move_completed_uploads):
+    #     os.mkdir(folder_to_move_completed_uploads)
 
-    if not os.path.isfile("config.json"):
-        with open("config.json", "w") as file:
-            file.write(json.dumps(DEFAULT_CONFIG, indent=4))
+    # if not os.path.isfile("config.json"):
+    #     with open("config.json", "w") as file:
+    #         file.write(json.dumps(DEFAULT_CONFIG, indent=4))
 
-    videos_needing_upload = set()
+    # videos_needing_upload = set()
 
-    twitch_videos = [
-        vid for vid in twitch_api.fetch_videos() 
-        if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
-    ]
+    # twitch_videos = [
+    #     vid for vid in twitch_api.fetch_videos() 
+    #     if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
+    # ]
 
-    while 1:
+    # while 1:
 
-        video_files = set(
-            os.path.join(folder_to_watch, path) for path in os.listdir(folder_to_watch) 
-            if os.path.isfile(os.path.join(folder_to_watch, path))
-            and path.endswith(".mp4")
-        )
+    #     video_files = set(
+    #         os.path.join(folder_to_watch, path) for path in os.listdir(folder_to_watch) 
+    #         if os.path.isfile(os.path.join(folder_to_watch, path))
+    #         and path.endswith(".mp4")
+    #     )
         
-        for file_path in video_files:
+    #     for file_path in video_files:
 
-            file_modified_time = os.path.getmtime(file_path)
-            file_modified_relative = time.time() - file_modified_time
-            file_size = os.path.getsize(file_path)
+    #         file_modified_time = os.path.getmtime(file_path)
+    #         file_modified_relative = time.time() - file_modified_time
+    #         file_size = os.path.getsize(file_path)
 
-            # print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
+    #         # print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
             
-            if file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
+    #         if file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
 
-                for video in twitch_videos:
-                    vid_tstamp = twitch_api.get_video_timestamp(video)
-                    vid_duration = twitch_api.get_video_duration(video)
+    #             for video in twitch_videos:
+    #                 vid_tstamp = twitch_api.get_video_timestamp(video)
+    #                 vid_duration = twitch_api.get_video_duration(video)
 
-                    # file creation time isn't used here because unix
-                    if file_modified_time >= (vid_tstamp - config["file_modified_start_max_delta"]) and file_modified_time < (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"])):
-                        print("adding video", file_path, "with clip", video["title"])
-                        if not file_path in videos_needing_upload:
-                            videos_needing_upload.add(file_path)
-                            break
+    #                 # file creation time isn't used here because unix
+    #                 if file_modified_time >= (vid_tstamp - config["file_modified_start_max_delta"]) and file_modified_time < (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"])):
+    #                     print("adding video", file_path, "with clip", video["title"])
+    #                     if not file_path in videos_needing_upload:
+    #                         videos_needing_upload.add(file_path)
+    #                         break
 
 
-        print("Files that should be uploaded:", videos_needing_upload)
-        print()
+    #     print("Files that should be uploaded:", videos_needing_upload)
+    #     print()
 
-        time.sleep(check_interval)
+    #     time.sleep(check_interval)

@@ -42,12 +42,12 @@ DEFAULT_CONFIG = {
 }
 
 def create_default_config():
-    with open("config.json", "w") as file:
+    with open("../data/config.json", "w") as file:
         file.write(json.dumps(DEFAULT_CONFIG, indent=4))
 
 def load_config():
-    if os.path.isfile("config.json"):
-        with open("config.json", "r") as config_file:
+    if os.path.isfile("../data/config.json"):
+        with open("../data/config.json", "r") as config_file:
             try:
                 config_dict = json.loads(config_file.read())
                 for key in DEFAULT_CONFIG:

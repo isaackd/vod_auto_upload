@@ -1,4 +1,5 @@
 __pycache__
-*.mp4
 *.json
-!test_data.json
+data/*
+!data/test_data.json
+videos
