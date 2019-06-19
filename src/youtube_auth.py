@@ -5,12 +5,15 @@ import math
 import webbrowser
 from requests_oauthlib import OAuth2Session
 
-from redirect_server import wait_for_auth_redirection
+from redirect_server import start_server, wait_for_auth_redirection
 
 from config import config
 
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
+AUTH_FILE_PATH = ROOT_DIR + "/data/auth.json"
+
 def token_saver(auth_data):
-    with open("auth.json", "w") as auth_file:
+    with open(AUTH_FILE_PATH, "w") as auth_file:
         auth_file.write(json.dumps(auth_data, indent=4))
 
 def after_server_start(authorization_url):
@@ -24,13 +27,11 @@ def after_server_start(authorization_url):
 client_id = config["youtube_client_id"]
 client_secret = config["youtube_client_secret"]
 
-redirect_host = config["redirect_host"] + ":" + str(config["redirect_port"])
-redirect_uri = f"http://{redirect_host}/submit_credentials"
-
 # OAuth endpoints given in the Google API documentation
 authorization_base_url = "https://accounts.google.com/o/oauth2/v2/auth"
 token_url = "https://www.googleapis.com/oauth2/v4/token"
 scope = [
+    "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/youtube.upload"
@@ -42,9 +43,15 @@ def test_auth(google_session):
     print(json.dumps(json.loads(r.text), indent=4))
 
 def init_google_session():
-    if os.path.isfile("auth.json"):
 
-        with open("auth.json", "r+", encoding="utf-8") as auth_file:
+    server_addr = start_server()
+
+    redirect_host = server_addr[0] + ":" + str(server_addr[1])
+    redirect_uri = f"http://{redirect_host}/submit_credentials"
+
+    if os.path.isfile(AUTH_FILE_PATH):
+
+        with open(AUTH_FILE_PATH, "r+", encoding="utf-8") as auth_file:
             auth_data = json.loads(auth_file.read())
 
             # update the "expires_in" key
