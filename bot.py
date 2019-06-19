@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import json
 
@@ -7,6 +8,8 @@ from resumable_upload import ResumableUpload
 from youtube_auth import init_google_session
 
 from config import config
+
+DRY_RUN_ENABLED = "--dry-run" in sys.argv
 
 def shorten_video_title(video_title):
     if " - !songrequest" in video_title:
@@ -97,18 +100,21 @@ def upload_video(google_session, video_path: str, twitch_video: dict, progress_c
         }
     }
 
-    try:
-        resumable_upload, video = start_resumable_download(google_session, video_path, video_meta, upload_url=upload_url)
-        save_in_progress_upload(resumable_upload.upload_url, twitch_video["id"])
-        response = resumable_upload.upload(progress_callback)
-        video.close()
-        return response
-    except ResumableUpload.ReachedRetryMax as e:
-        print(e)
-        print("Reached the maximum amount of retries")
+    if not DRY_RUN_ENABLED:
+        try:
+            resumable_upload, video = start_resumable_download(google_session, video_path, video_meta, upload_url=upload_url)
+            save_in_progress_upload(resumable_upload.upload_url, twitch_video["id"])
+            response = resumable_upload.upload(progress_callback)
+            video.close()
+            return response
+        except ResumableUpload.ReachedRetryMax as e:
+            print(e)
+            print("Reached the maximum amount of retries")
 
-    finally:
-        remove_in_progress_upload(resumable_upload.upload_url, twitch_video["id"])
+        finally:
+            remove_in_progress_upload(resumable_upload.upload_url, twitch_video["id"])
+    else:
+        print(f"[DRY RUN] Video would now be uploaded in a real run:\n    video path: {video_path}\n    twitch video: {twitch_video}\n    upload url: {upload_url}")
 
 def test_upload_vid(google_session, video_path: str):
 
@@ -121,7 +127,8 @@ def test_upload_vid(google_session, video_path: str):
     res = upload_video(google, video_path, {
         "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
         "description": "",
-        "url": "https://www.twitch.tv/videos/426700335"
+        "url": "https://www.twitch.tv/videos/426700335",
+        "id": "426700335"
     }, prog)
     if res and res.status_code in (200, 201):
 
@@ -141,12 +148,17 @@ def test_upload_vid(google_session, video_path: str):
 
 if __name__ == "__main__":
 
+    if DRY_RUN_ENABLED:
+        print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
+        print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
+
     # google = init_google_session()
 
     # if google:
     #     test_upload_vid(google, "vid.mp4")
     # else:
     #     print("Unable to initialize a Google session")
+
 
     print("config:", config)
 
