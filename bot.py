@@ -17,6 +17,55 @@ def shorten_video_title(video_title):
 
     return video_title
 
+def save_in_progress_upload(upload_url, twitch_vod_id):
+
+    def create_json_structure(file):
+        contents = {}
+        contents[twitch_vod_id] = upload_url
+
+        file.write(json.dumps(contents, indent=4))
+
+    if os.path.isfile("state.json"):
+        with open("state.json", "r+") as file:
+            try:
+                contents = json.loads(file.read())
+
+                contents[twitch_vod_id] = upload_url
+
+                file.truncate(0)
+                file.seek(0)
+
+                file.write(json.dumps(contents, indent=4))
+
+            except json.decoder.JSONDecodeError as e:
+                file.truncate(0)
+                file.seek(0)
+                create_json_structure(file)
+    else:
+        with open("state.json", "w") as file:
+            create_json_structure(file)
+
+def remove_in_progress_upload(upload_url, twitch_vod_id) -> bool:
+    if os.path.isfile("state.json"):
+        with open("state.json", "r+") as file:
+            try:
+                contents = json.loads(file.read())
+
+                for v_id in contents:
+                    if v_id == twitch_vod_id and contents[v_id] == upload_url:
+                        del contents[v_id]
+                        break
+
+                file.truncate(0)
+                file.seek(0)
+
+                file.write(json.dumps(contents, indent=4))
+
+            except json.decoder.JSONDecodeError as e:
+                return False
+    else:
+        return False
+
 def upload_video(google_session, video_path: str, twitch_video: dict, progress_callback=None, upload_url=None):
 
     def start_resumable_download(google_session, video_path: str, video_metadata: dict, chunk_size=None, upload_url=None):
@@ -50,6 +99,7 @@ def upload_video(google_session, video_path: str, twitch_video: dict, progress_c
 
     try:
         resumable_upload, video = start_resumable_download(google_session, video_path, video_meta, upload_url=upload_url)
+        save_in_progress_upload(resumable_upload.upload_url, twitch_video["id"])
         response = resumable_upload.upload(progress_callback)
         video.close()
         return response
@@ -57,7 +107,8 @@ def upload_video(google_session, video_path: str, twitch_video: dict, progress_c
         print(e)
         print("Reached the maximum amount of retries")
 
-
+    finally:
+        remove_in_progress_upload(resumable_upload.upload_url, twitch_video["id"])
 
 def test_upload_vid(google_session, video_path: str):
 
@@ -88,7 +139,6 @@ def test_upload_vid(google_session, video_path: str):
         print("Unable to upload video:", video_path)
 
 
-
 if __name__ == "__main__":
 
     # google = init_google_session()
@@ -97,7 +147,6 @@ if __name__ == "__main__":
     #     test_upload_vid(google, "vid.mp4")
     # else:
     #     print("Unable to initialize a Google session")
-
 
     print("config:", config)
 
@@ -115,7 +164,10 @@ if __name__ == "__main__":
 
     videos_needing_upload = set()
 
-    twitch_videos = twitch_api.fetch_videos()
+    twitch_videos = [
+        vid for vid in twitch_api.fetch_videos() 
+        if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
+    ]
 
     while 1:
 
@@ -132,16 +184,12 @@ if __name__ == "__main__":
             file_size = os.path.getsize(file_path)
 
             # print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
-
-            # TODO: REMOVE 1 USED FOR TESTING
-            if 1 or file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
+            
+            if file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
 
                 for video in twitch_videos:
                     vid_tstamp = twitch_api.get_video_timestamp(video)
                     vid_duration = twitch_api.get_video_duration(video)
-
-                    if vid_duration < config["twitch_video_duration_threshold"]:
-                        continue
 
                     # file creation time isn't used here because unix
                     if file_modified_time >= (vid_tstamp - config["file_modified_start_max_delta"]) and file_modified_time < (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"])):
