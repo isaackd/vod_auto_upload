@@ -252,7 +252,7 @@ def watch_recordings_folder(google: dict):
         print("Files that should be uploaded:", videos_needing_upload)
         for video_path in videos_needing_upload:
             video_meta = videos_needing_upload[video_path]
-            print("Uploading:", video_path + " with data:", video_meta)
+            print("Uploading:", video_path + " with metadata:", video_meta)
             quick_upload_video(google, video_path, video_meta)
         print()
 
