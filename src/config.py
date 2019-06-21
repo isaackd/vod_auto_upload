@@ -43,7 +43,7 @@ def create_default_config():
     with open(ROOT_DIR + "/data/config.json", "w") as file:
         file.write(json.dumps(DEFAULT_CONFIG, indent=4))
 
-def load_config():
+def load_config() -> dict:
     if os.path.isfile(ROOT_DIR + "/data/config.json"):
         with open(ROOT_DIR + "/data/config.json", "r") as config_file:
             try:
