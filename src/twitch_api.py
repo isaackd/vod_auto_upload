@@ -12,19 +12,19 @@ twitch_session = requests.Session()
 twitch_session.headers.update({"Client-ID": TWITCH_CLIENT_ID})
 
 
-def fetch_videos() -> str:
+def fetch_videos() -> dict:
     endpoint = "https://api.twitch.tv/helix/videos"
     params = {"user_id": USER_ID}
 
     with twitch_session.get(endpoint, params=params) as response:
         return json.loads(response.text)["data"]
 
-def get_video_timestamp(video) -> float:
+def get_video_timestamp(video: dict) -> float:
     created_string = video["created_at"]
     created_time = parse(created_string)
     return created_time.timestamp()
 
-def get_video_duration(video) -> int:
+def get_video_duration(video: dict) -> int:
     dur = video["duration"]
 
     seconds = 0
