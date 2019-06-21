@@ -10,7 +10,7 @@ class ResumableUpload():
     class ReachedRetryMax(Exception):
         pass
 
-    def __init__(self, video_metadata, file_handle, chunk_size=None, session=requests.Session(), upload_url=None):
+    def __init__(self, video_metadata: dict, file_handle, chunk_size=None, session=requests.Session(), upload_url: str = None):
         self.video_metadata = video_metadata
         self.file_handle = file_handle
 
