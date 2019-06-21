@@ -37,7 +37,7 @@ scope = [
     "https://www.googleapis.com/auth/youtube.upload"
 ]
 
-def test_auth(google_session):
+def test_auth(google_session: dict):
      # Fetch a protected resource, i.e. user profile
     r = google_session.get("https://www.googleapis.com/oauth2/v1/userinfo")
     print(json.dumps(json.loads(r.text), indent=4))
