@@ -168,7 +168,7 @@ def quick_upload_video(google_session: dict, video_path: str, video_meta: dict =
             "id": "426700335"
         }
 
-    res = upload_video(google, video_path, video_meta, progress_callback=prog, upload_url=upload_url)
+    res = upload_video(google_session, video_path, video_meta, progress_callback=prog, upload_url=upload_url)
     if res and res.status_code in (200, 201):
 
         res_json = res.json()
@@ -275,7 +275,7 @@ if __name__ == "__main__":
     # remove_in_progress_upload("426700335")
 
 
-    google = init_google_session()
+    # google = init_google_session()
 
     # check_in_progress_uploads(google)
 
@@ -284,4 +284,4 @@ if __name__ == "__main__":
     # else:
     #     print("Unable to initialize a Google session")
 
-    watch_recordings_folder(google)
+    watch_recordings_folder(None)
