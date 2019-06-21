@@ -5,7 +5,7 @@ import json
 
 import twitch_api
 from resumable_upload import ResumableUpload
-from youtube_auth import init_google_session
+# from youtube_auth import init_google_session
 
 from config import config
 
