@@ -12,6 +12,10 @@ from config import config
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 AUTH_FILE_PATH = ROOT_DIR + "/data/auth.json"
 
+if not config["youtube_client_id"] or not config["youtube_client_secret"]:
+    print("Please enter your YouTube Client ID and YouTube Client Secret in data/config.json. (More info in the README)")
+    exit(1)
+
 def token_saver(auth_data):
     with open(AUTH_FILE_PATH, "w") as auth_file:
         auth_file.write(json.dumps(auth_data, indent=4))

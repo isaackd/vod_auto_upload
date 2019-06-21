@@ -11,6 +11,10 @@ USER_ID = config["twitch_user_id"]
 twitch_session = requests.Session()
 twitch_session.headers.update({"Client-ID": TWITCH_CLIENT_ID})
 
+if not config["twitch_client_id"] or not config["twitch_user_id"]:
+    print("Please enter your Twitch Client ID and Twitch User ID in data/config.json. (More info in the README)")
+    exit(1)
+
 
 def fetch_videos() -> dict:
     endpoint = "https://api.twitch.tv/helix/videos"
