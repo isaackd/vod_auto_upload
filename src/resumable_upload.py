@@ -20,8 +20,9 @@ class ResumableUpload():
         self.session = session
 
         self.file_size = os.path.getsize(self.file_handle.name)
-        # default to 8MiB
-        self.chunk_size = chunk_size if chunk_size else self.file_size / 10
+
+        # cap chunk size at 512MiB
+        self.chunk_size = chunk_size if chunk_size else min(self.file_size / 10, 536_870_912)
         self.chunk_size = 262144 * round(self.chunk_size / 262144)
         print("Chunk Size:", self.chunk_size)
 
