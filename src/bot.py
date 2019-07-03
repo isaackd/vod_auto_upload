@@ -10,6 +10,8 @@ from resumable_upload import ResumableUpload
 from config import config
 
 DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
+# TODO: use logging for this
+DEBUG_ENABLED = "--debug" in sys.argv or 1
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 
@@ -204,7 +206,8 @@ def check_in_progress_uploads(google_session: dict):
 
 
 def watch_recordings_folder(google: dict):
-    print("config:", config)
+    if DEBUG_ENABLED:
+        print("config:", config)
 
     folder_to_watch = config["folder_to_watch"]
     folder_to_move_completed_uploads = config["folder_to_move_completed_uploads"]
@@ -221,7 +224,18 @@ def watch_recordings_folder(google: dict):
         if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
     ]
 
+    checks_count = 0
+
     while 1:
+
+        if checks_count * config["check_folder_interval"] >= config["twitch_vod_refresh_rate"]:
+            if DEBUG_ENABLED:
+                print("Refreshing twitch vods", checks_count)
+            twitch_videos = [
+                vid for vid in twitch_api.fetch_videos() 
+                if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
+            ]
+            checks_count = 0
 
         video_files = set(
             os.path.join(folder_to_watch, path) for path in os.listdir(folder_to_watch)
@@ -236,7 +250,7 @@ def watch_recordings_folder(google: dict):
 
             # print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
 
-            if 1 or file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
+            if file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
 
                 for video in twitch_videos:
                     vid_tstamp = twitch_api.get_video_timestamp(video)
@@ -244,7 +258,10 @@ def watch_recordings_folder(google: dict):
 
                     # file creation time isn't used here because unix
                     if file_modified_time >= (vid_tstamp - config["file_modified_start_max_delta"]) and file_modified_time < (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"])):
-                        print("adding video", file_path, "with VOD", video["title"])
+                        # print("adding video", file_path, "with VOD", video["title"])
+                        if check_vod_uploaded(video["id"]):
+                            print(f"VIDEO WAS ALREADY UPLOADED:", video["id"])
+                            break
                         if not file_path in videos_needing_upload:
                             videos_needing_upload[file_path] = video
                             break
@@ -257,6 +274,8 @@ def watch_recordings_folder(google: dict):
         print()
 
         time.sleep(check_interval)
+
+        checks_count += 1
 
 
 if __name__ == "__main__":
