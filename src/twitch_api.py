@@ -1,9 +1,12 @@
+import os
 import requests
 import json
 
 from dateutil.parser import parse
 
 from config import config
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 
 TWITCH_CLIENT_ID = config["twitch_client_id"]
 USER_ID = config["twitch_user_id"]
@@ -49,7 +52,7 @@ def get_video_duration(video: dict) -> int:
 
 if __name__ == '__main__':
     print(json.dumps(fetch_videos(), indent=4))
-    with open("test_data.json", "r") as file:
-        data = json.loads(file.read())
-        for video in data:
-            print(get_video_duration(video), video["duration"])
+    # with open(ROOT_DIR + "/data/test_data.json", "r") as file:
+    #     data = json.loads(file.read())
+    #     for video in data:
+    #         print(get_video_duration(video), video["duration"])
