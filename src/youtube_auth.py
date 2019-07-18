@@ -24,10 +24,6 @@ def after_server_start(authorization_url):
     print("The authorization url should have opened in your default browser. If it hasn\'t, please go here to authorize:", authorization_url)
     webbrowser.open(authorization_url)
 
-# Credentials you get from registering a new application
-# client_id = "687701237754-cmhbj9toli2h5nhfirm2u9igeafuittn.apps.googleusercontent.com"
-# client_secret = "-oPHEIWqGP9FLdxpomeyMcN6"
-
 client_id = config["youtube_client_id"]
 client_secret = config["youtube_client_secret"]
 
