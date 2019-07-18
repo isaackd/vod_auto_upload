@@ -2,14 +2,15 @@ import os
 import sys
 import time
 import json
+from datetime import datetime
 
 import twitch_api
 from resumable_upload import ResumableUpload
-# from youtube_auth import init_google_session
+from youtube_auth import init_google_session
 
 from config import config
 
-DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
+DRY_RUN_ENABLED = "--dry-run" in sys.argv
 # TODO: use logging for this
 DEBUG_ENABLED = "--debug" in sys.argv or 1
 
@@ -42,6 +43,7 @@ def check_vod_uploaded(twitch_vod_id: str) -> bool:
     if os.path.isfile(UPLOAD_HISTORY_PATH):
         with open(UPLOAD_HISTORY_PATH, "r") as file:
             for vod_id in file:
+                vod_id = vod_id.strip()
                 if vod_id == twitch_vod_id:
                     return True
 
@@ -137,10 +139,13 @@ def upload_video(google_session: dict, video_path: str, twitch_video: dict, prog
     if not DRY_RUN_ENABLED:
         try:
             resumable_upload, video = start_resumable_download(google_session, video_path, video_meta, upload_url=upload_url)
-            save_in_progress_upload(resumable_upload.upload_url, video_path, twitch_video)
-            response = resumable_upload.upload(progress_callback)
-            video.close()
-            return response
+            if resumable_upload.upload_url:
+                save_in_progress_upload(resumable_upload.upload_url, video_path, twitch_video)
+                response = resumable_upload.upload(progress_callback)
+                video.close()
+                return response
+            else:
+                raise ResumableUpload.ReachedRetryMax
         except ResumableUpload.ReachedRetryMax as e:
             print(e)
             print("Reached the maximum amount of retries")
@@ -148,9 +153,9 @@ def upload_video(google_session: dict, video_path: str, twitch_video: dict, prog
             remove_in_progress_upload(twitch_video["id"])
     else:
         print(f"[DRY RUN] Video would now be uploaded in a real run:\n    video path: {video_path}\n    twitch video: {twitch_video}\n    upload url: {upload_url}")
-        save_in_progress_upload("https://example.org", video_path, twitch_video)
-        time.sleep(5)
-        remove_in_progress_upload(twitch_video["id"])
+        # save_in_progress_upload("https://example.org", video_path, twitch_video)
+        # time.sleep(5)
+        # remove_in_progress_upload(twitch_video["id"])
 
 
 def quick_upload_video(google_session: dict, video_path: str, video_meta: dict = None, upload_url: str = None):
@@ -186,6 +191,8 @@ def quick_upload_video(google_session: dict, video_path: str, video_meta: dict =
 
         mark_twitch_vod_as_uploaded(video_meta["id"])
 
+        os.rename(video_path, config["folder_to_move_completed_uploads"] + "/" + os.path.basename(video_path));
+
     else:
         print("Unable to upload video:", video_path)
 
@@ -217,8 +224,6 @@ def watch_recordings_folder(google: dict):
     if not os.path.isdir(folder_to_move_completed_uploads):
         os.mkdir(folder_to_move_completed_uploads)
 
-    videos_needing_upload: dict = {}
-
     twitch_videos = [
         vid for vid in twitch_api.fetch_videos() 
         if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
@@ -227,6 +232,8 @@ def watch_recordings_folder(google: dict):
     checks_count = 0
 
     while 1:
+
+        videos_needing_upload: dict = {}
 
         if checks_count * config["check_folder_interval"] >= config["twitch_vod_refresh_rate"]:
             if DEBUG_ENABLED:
@@ -248,9 +255,9 @@ def watch_recordings_folder(google: dict):
             file_modified_relative = time.time() - file_modified_time
             file_size = os.path.getsize(file_path)
 
-            # print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
+            print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
 
-            if file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
+            if 1 or file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
 
                 for video in twitch_videos:
                     vid_tstamp = twitch_api.get_video_timestamp(video)
@@ -266,16 +273,34 @@ def watch_recordings_folder(google: dict):
                             videos_needing_upload[file_path] = video
                             break
 
-        print("Files that should be uploaded:", videos_needing_upload)
+        print("Files that should be uploaded:", json.dumps(videos_needing_upload, indent=4))
         for video_path in videos_needing_upload:
             video_meta = videos_needing_upload[video_path]
             print("Uploading:", video_path + " with metadata:", video_meta)
-            quick_upload_video(google, video_path, video_meta)
+            try:
+                quick_upload_video(google, video_path, video_meta)
+            except ResumableUpload.ExceededQuota:
+                hours_until_reset = get_hours_until_quota_reset()
+                print(f"The daily quota limit has been reached. Sleeping until midnight Pacific Time ({hours_until_reset} hours)")
+                time.sleep(hours_until_reset * 60 * 60)
+
+
         print()
 
         time.sleep(check_interval)
 
         checks_count += 1
+
+def get_hours_until_quota_reset():
+    dt = datetime.utcnow()
+    hr = dt.hour
+
+    if hr > 7:
+        return 24 - (hr - 7)
+    elif hr < 7:
+        return 7 - hr
+    elif hr == 7:
+        return 24
 
 
 if __name__ == "__main__":
@@ -293,14 +318,13 @@ if __name__ == "__main__":
 
     # remove_in_progress_upload("426700335")
 
+    google = init_google_session()
 
-    # google = init_google_session()
-
-    # check_in_progress_uploads(google)
+    check_in_progress_uploads(google)
 
     # if google:
     #     quick_upload_video(google, ROOT_DIR + "/videos/vid.mp4")
     # else:
     #     print("Unable to initialize a Google session")
 
-    watch_recordings_folder(None)
+    watch_recordings_folder(google)
