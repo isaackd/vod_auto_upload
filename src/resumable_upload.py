@@ -10,6 +10,9 @@ class ResumableUpload():
     class ReachedRetryMax(Exception):
         pass
 
+    class ExceededQuota(Exception):
+        pass
+
     def __init__(self, video_metadata: dict, file_handle, chunk_size=None, session=requests.Session(), upload_url: str = None):
         self.video_metadata = video_metadata
         self.file_handle = file_handle
@@ -62,6 +65,8 @@ class ResumableUpload():
                     }
 
                     return upload_url
+                elif r.status_code == 403:
+                    raise ResumableUpload.ExceededQuota("Exceeded quota")
                 else:
                     print(f"Server responded unsuccessfully ({r.status_code}) while requesting upload url. Retrying...")
                     try:
@@ -71,6 +76,8 @@ class ResumableUpload():
                         pass
 
             except Exception as e:
+                if isinstance(e, ResumableUpload.ExceededQuota):
+                    raise e
                 print("Error while requesting upload url. Retrying...:", e)
                 sleep_seconds = self.get_next_retry_sleep()
                 time.sleep(sleep_seconds)
