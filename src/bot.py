@@ -20,6 +20,7 @@ STATE_FILE_PATH = ROOT_DIR + "/data/state.json"
 CONFIG_FILE_PATH = ROOT_DIR + "/data/config.json"
 UPLOAD_HISTORY_PATH = ROOT_DIR + "/data/upload_history.txt"
 
+
 def shorten_video_title(video_title: str) -> str:
     if " - !songrequest" in video_title:
         video_title = video_title.split(" - !songrequest")[0]
@@ -191,7 +192,7 @@ def quick_upload_video(google_session: dict, video_path: str, video_meta: dict =
 
         mark_twitch_vod_as_uploaded(video_meta["id"])
 
-        os.rename(video_path, config["folder_to_move_completed_uploads"] + "/" + os.path.basename(video_path));
+        os.rename(video_path, config["folder_to_move_completed_uploads"] + "/" + os.path.basename(video_path))
 
     else:
         print("Unable to upload video:", video_path)
@@ -225,7 +226,7 @@ def watch_recordings_folder(google: dict):
         os.mkdir(folder_to_move_completed_uploads)
 
     twitch_videos = [
-        vid for vid in twitch_api.fetch_videos() 
+        vid for vid in twitch_api.fetch_videos()
         if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
     ]
 
@@ -239,7 +240,7 @@ def watch_recordings_folder(google: dict):
             if DEBUG_ENABLED:
                 print("Refreshing twitch vods", checks_count)
             twitch_videos = [
-                vid for vid in twitch_api.fetch_videos() 
+                vid for vid in twitch_api.fetch_videos()
                 if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
             ]
             checks_count = 0
@@ -269,7 +270,7 @@ def watch_recordings_folder(google: dict):
                         if check_vod_uploaded(video["id"]):
                             print(f"VIDEO WAS ALREADY UPLOADED:", video["id"])
                             break
-                        if not file_path in videos_needing_upload:
+                        if file_path not in videos_needing_upload:
                             videos_needing_upload[file_path] = video
                             break
 
@@ -284,12 +285,12 @@ def watch_recordings_folder(google: dict):
                 print(f"The daily quota limit has been reached. Sleeping until midnight Pacific Time ({hours_until_reset} hours)")
                 time.sleep(hours_until_reset * 60 * 60)
 
-
         print()
 
         time.sleep(check_interval)
 
         checks_count += 1
+
 
 def get_hours_until_quota_reset():
     dt = datetime.utcnow()
