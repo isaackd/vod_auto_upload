@@ -2,7 +2,7 @@ import os
 import requests
 import json
 
-from dateutil.parser import parse
+from datetime import datetime
 
 from config import config
 
@@ -28,7 +28,7 @@ def fetch_videos() -> dict:
 
 def get_video_timestamp(video: dict) -> float:
     created_string = video["created_at"]
-    created_time = parse(created_string)
+    created_time = datetime.strptime(created_string, "%Y-%m-%dT%H:%M:%SZ")
     return created_time.timestamp()
 
 def get_video_duration(video: dict) -> int:
@@ -39,7 +39,7 @@ def get_video_duration(video: dict) -> int:
     h = dur.split("h", maxsplit=1)
     m = (h[1] if len(h) > 1 else dur).split("m", maxsplit=1)
     s = (m[1] if len(m) > 1 else dur).split("s", maxsplit=1)
-      
+
     if h[0] and len(h) == 2:
         seconds += int(h[0]) * 60 * 60
     if m[0] and len(m) == 2:
@@ -51,8 +51,9 @@ def get_video_duration(video: dict) -> int:
 
 
 if __name__ == '__main__':
-    print(json.dumps(fetch_videos(), indent=4))
-    # with open(ROOT_DIR + "/data/test_data.json", "r") as file:
-    #     data = json.loads(file.read())
-    #     for video in data:
-    #         print(get_video_duration(video), video["duration"])
+    # print(json.dumps(fetch_videos(), indent=4))
+    with open(ROOT_DIR + "/data/test_data.json", "r") as file:
+        data = json.loads(file.read())
+        for video in data:
+            print(get_video_timestamp(video), video["created_at"])
+            # print(get_video_duration(video), video["duration"])
