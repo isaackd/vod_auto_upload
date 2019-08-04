@@ -2,7 +2,8 @@ import os
 import sys
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz
 
 import twitch_api
 from resumable_upload import ResumableUpload
@@ -10,7 +11,10 @@ from youtube_auth import init_google_session
 
 from config import config
 
-DRY_RUN_ENABLED = "--dry-run" in sys.argv
+# Google APIs reset quota at midnight PT
+pacific_tz = pytz.timezone("America/Los_Angeles")
+
+DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
 # TODO: use logging for this
 DEBUG_ENABLED = "--debug" in sys.argv or 1
 
@@ -192,7 +196,7 @@ def quick_upload_video(google_session: dict, video_path: str, video_meta: dict =
 
         mark_twitch_vod_as_uploaded(video_meta["id"])
 
-        os.rename(video_path, config["folder_to_move_completed_uploads"] + "/" + os.path.basename(video_path))
+        move_video_to_uploaded_folder(video_path)
 
     else:
         print("Unable to upload video:", video_path)
@@ -256,7 +260,8 @@ def watch_recordings_folder(google: dict):
             file_modified_relative = time.time() - file_modified_time
             file_size = os.path.getsize(file_path)
 
-            print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
+            if DEBUG_ENABLED:
+                print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
 
             if 1 or file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
 
@@ -266,24 +271,33 @@ def watch_recordings_folder(google: dict):
 
                     # file creation time isn't used here because unix
                     if file_modified_time >= (vid_tstamp - config["file_modified_start_max_delta"]) and file_modified_time < (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"])):
-                        # print("adding video", file_path, "with VOD", video["title"])
+                        print_video_vod_info("ADDING VIDEO", file_path, file_modified_time, video["title"], vid_tstamp)
                         if check_vod_uploaded(video["id"]):
-                            print(f"VIDEO WAS ALREADY UPLOADED:", video["id"])
+                            print(f"Video was already uploaded:", video["id"])
+                            move_video_to_uploaded_folder(file_path)
                             break
                         if file_path not in videos_needing_upload:
                             videos_needing_upload[file_path] = video
                             break
 
-        print("Files that should be uploaded:", json.dumps(videos_needing_upload, indent=4))
+        if DEBUG_ENABLED:
+            print("Files that should be uploaded:", json.dumps(videos_needing_upload, indent=4))
         for video_path in videos_needing_upload:
             video_meta = videos_needing_upload[video_path]
-            print("Uploading:", video_path + " with metadata:", video_meta)
+
+            if DEBUG_ENABLED:
+                print("Uploading:", video_path + "\nwith VOD:", video_meta)
+            else:
+                print("Uploading:", video_path + "\nwith VOD:", video_meta["title"] + "\n")
             try:
                 quick_upload_video(google, video_path, video_meta)
             except ResumableUpload.ExceededQuota:
-                hours_until_reset = get_hours_until_quota_reset()
-                print(f"The daily quota limit has been reached. Sleeping until midnight Pacific Time ({hours_until_reset} hours)")
-                time.sleep(hours_until_reset * 60 * 60)
+                time_until_reset = get_time_until_quota_reset()
+
+                local_reset = datetime.now() + time_until_reset
+                print(f"The daily quota limit has been reached.")
+                print(f"Sleeping until midnight Pacific Time ({pretty_print_time(local_reset)} local time)")
+                time.sleep(time_until_reset.total_seconds())
 
         print()
 
@@ -292,17 +306,34 @@ def watch_recordings_folder(google: dict):
         checks_count += 1
 
 
-def get_hours_until_quota_reset():
-    dt = datetime.utcnow()
-    hr = dt.hour
+def get_time_until_quota_reset():
+    dt = datetime.now().astimezone(pacific_tz)
+    quota_reset = (dt + timedelta(days=1)).replace(hour=0, minute=10, second=0).astimezone(pacific_tz)
 
-    if hr > 7:
-        return 24 - (hr - 7)
-    elif hr < 7:
-        return 7 - hr
-    elif hr == 7:
-        return 24
+    time_to_quota_reset = quota_reset - dt
 
+    if DEBUG_ENABLED:
+        print("current time:", dt)
+        print("quota reset:", quota_reset)
+        print("time to quota reset:", time_to_quota_reset)
+
+    return time_to_quota_reset
+
+
+def pretty_print_time(dt):
+    return dt.strftime('%I:%M %p').lstrip("0")
+
+
+def print_video_vod_info(message, video_path, video_modified, vod_title, vod_date_created):
+    print(f"--- {message} ---")
+    print(f"| Video Path:     {video_path}")
+    print(f"| VOD Title:      {vod_title}")
+    print(f"| Video Modified: {video_modified}")
+    print(f"| VOD Timestamp:  {vod_date_created}")
+    print()
+
+def move_video_to_uploaded_folder(video_path):
+    os.rename(video_path, config["folder_to_move_completed_uploads"] + "/" + os.path.basename(video_path))
 
 if __name__ == "__main__":
 
