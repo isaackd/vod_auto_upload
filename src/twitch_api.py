@@ -18,8 +18,10 @@ if not config["twitch_client_id"] or not config["twitch_user_id"]:
     print("Please enter your Twitch Client ID and Twitch User ID in data/config.json. (More info in the README)")
     exit(1)
 
+
 class TwitchAPIError(Exception):
     pass
+
 
 def fetch_videos() -> dict:
     endpoint = "https://api.twitch.tv/helix/videos"
@@ -31,10 +33,12 @@ def fetch_videos() -> dict:
         else:
             raise TwitchAPIError(response.status_code)
 
+
 def get_video_timestamp(video: dict) -> float:
     created_string = video["created_at"]
     created_time = datetime.strptime(created_string, "%Y-%m-%dT%H:%M:%SZ")
     return created_time.timestamp()
+
 
 def get_video_duration(video: dict) -> int:
     dur = video["duration"]
