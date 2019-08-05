@@ -4,8 +4,10 @@ import json
 
 from pathlib import Path
 
+
 class ConfigLoadError(Exception):
     pass
+
 
 # videos directory isn't a good default value
 # just for easier testing
@@ -19,10 +21,10 @@ DEFAULT_CONFIG = {
 
     "twitch_client_id": "",
     "twitch_user_id": "",
-    
+
     "folder_to_watch": DEFAULT_WATCH_FOLDER,
     "folder_to_move_completed_uploads": DEFAULT_WATCH_FOLDER + "/uploaded",
-    # check the folder for video files that can be uploaded every 10 seconds 
+    # check the folder for video files that can be uploaded every 10 seconds
     # should be increased to around a minute after testing
     "check_folder_interval": 10,
     # # Video files must be at least 1GiB to be uploaded
@@ -36,14 +38,16 @@ DEFAULT_CONFIG = {
     "file_modified_start_max_delta": 120,
     "file_modified_end_max_delta": 1_800,
     # how often we should call the Twitch API and fetch new VODs
-    "twitch_vod_refresh_rate": 60 * 10
+    "twitch_vod_refresh_rate": 3 * 60 * 60
 }
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 
+
 def create_default_config():
     with open(ROOT_DIR + "/data/config.json", "w") as file:
         file.write(json.dumps(DEFAULT_CONFIG, indent=4))
+
 
 def load_config() -> dict:
     if os.path.isfile(ROOT_DIR + "/data/config.json"):
@@ -64,5 +68,6 @@ def load_config() -> dict:
     else:
         create_default_config()
         return load_config()
+
 
 config = load_config()
