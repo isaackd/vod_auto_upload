@@ -229,10 +229,7 @@ def watch_recordings_folder(google: dict):
     if not os.path.isdir(folder_to_move_completed_uploads):
         os.mkdir(folder_to_move_completed_uploads)
 
-    twitch_videos = [
-        vid for vid in twitch_api.fetch_videos()
-        if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
-    ]
+    twitch_videos = get_twitch_vod_information()
 
     checks_count = 0
 
@@ -304,6 +301,25 @@ def watch_recordings_folder(google: dict):
         time.sleep(check_interval)
 
         checks_count += 1
+
+def get_twitch_vod_information():
+    twitch_retries = 10
+    
+    for i in range(twitch_retries):
+        try:
+            return [
+                vid for vid in twitch_api.fetch_videos()
+                if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
+            ]
+        except twitch_api.TwitchAPIError as e:
+            print(f"Twitch API request unsuccessful ({e})")
+            if i + 1 == twitch_retries:
+                sys.exit(f"\nUnable to fetch twitch vod information after {twitch_retries} retries...")
+                # raise
+            else:
+                time_to_sleep = (i + 1) * 60
+                print(f"Trying again in {time_to_sleep} seconds")
+                time.sleep(time_to_sleep)
 
 
 def get_time_until_quota_reset():
