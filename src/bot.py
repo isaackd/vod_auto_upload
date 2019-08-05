@@ -11,18 +11,22 @@ from youtube_auth import init_google_session
 
 from config import config
 
+from logs import setup_logger
+
 # Google APIs reset quota at midnight PT
 pacific_tz = pytz.timezone("America/Los_Angeles")
 
 DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
 # TODO: use logging for this
-DEBUG_ENABLED = "--debug" in sys.argv or 1
+DEBUG_ENABLED = "--debug" in sys.argv
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 
 STATE_FILE_PATH = ROOT_DIR + "/data/state.json"
 CONFIG_FILE_PATH = ROOT_DIR + "/data/config.json"
 UPLOAD_HISTORY_PATH = ROOT_DIR + "/data/upload_history.txt"
+
+logger = setup_logger(debug_enabled=DEBUG_ENABLED)
 
 
 def shorten_video_title(video_title: str) -> str:
@@ -115,7 +119,7 @@ def upload_video(google_session: dict, video_path: str, twitch_video: dict, prog
 
     def start_resumable_download(google_session: dict, video_path: str, video_metadata: dict, chunk_size=None, upload_url: str = None):
         if not os.path.isfile(video_path):
-            print("Invalid file path:", video_path)
+            logger.error(f"Invalid file path: {video_path}")
             return
 
         video = open(video_path, "rb")
@@ -151,13 +155,12 @@ def upload_video(google_session: dict, video_path: str, twitch_video: dict, prog
                 return response
             else:
                 raise ResumableUpload.ReachedRetryMax
-        except ResumableUpload.ReachedRetryMax as e:
-            print(e)
-            print("Reached the maximum amount of retries")
+        except ResumableUpload.ReachedRetryMax:
+            logger.error("Reached the maximum amount of retries", exc_info=True)
         finally:
             remove_in_progress_upload(twitch_video["id"])
     else:
-        print(f"[DRY RUN] Video would now be uploaded in a real run:\n    video path: {video_path}\n    twitch video: {twitch_video}\n    upload url: {upload_url}")
+        logger.info(f"[DRY RUN] Video would now be uploaded in a real run:\n    video path: {video_path}\n    twitch video: {twitch_video}\n    upload url: {upload_url}")
         # save_in_progress_upload("https://example.org", video_path, twitch_video)
         # time.sleep(5)
         # remove_in_progress_upload(twitch_video["id"])
@@ -169,7 +172,7 @@ def quick_upload_video(google_session: dict, video_path: str, video_meta: dict =
 
     def prog(status, response, uploaded_bytes):
         prog = (uploaded_bytes / file_size) * 100
-        print(f"[PROGRESS] status: {status} {prog:.2f}%")
+        logger.info(f"[PROGRESS] status: {status} {prog:.2f}%")
         # print(f"[PROGRESS] status: {status} {response.headers} {response.content}\nREQUEST HEADERS: {response.request.headers}")
 
     if not video_meta:
@@ -184,7 +187,7 @@ def quick_upload_video(google_session: dict, video_path: str, video_meta: dict =
     if res and res.status_code in (200, 201):
 
         res_json = res.json()
-        print("Final response:", res_json)
+        logger.info(f"Final response: {res_json}")
 
         title = res_json["snippet"]["title"]
         channel = res_json["snippet"]["channelTitle"]
@@ -192,14 +195,14 @@ def quick_upload_video(google_session: dict, video_path: str, video_meta: dict =
         link = "https://youtube.com/watch?v=" + res_json["id"]
         privacy = res_json["status"]["privacyStatus"]
         published = res_json["snippet"]["publishedAt"]
-        print(f"\ntitle: {title}\nchannel: {channel} ({channel_id})\nlink: {link}\nprivacy: {privacy}\npublished: {published}")
+        logger.info(f"\ntitle: {title}\nchannel: {channel} ({channel_id})\nlink: {link}\nprivacy: {privacy}\npublished: {published}")
 
         mark_twitch_vod_as_uploaded(video_meta["id"])
 
         move_video_to_uploaded_folder(video_path)
 
     else:
-        print("Unable to upload video:", video_path)
+        logger.error(f"Unable to upload video: {video_path}")
 
 
 def check_in_progress_uploads(google_session: dict):
@@ -211,15 +214,14 @@ def check_in_progress_uploads(google_session: dict):
                 entry = contents[twitch_video_id]
                 file_path = entry["video_path"]
                 if os.path.isfile(file_path):
-                    print(f"Resuming incomplete upload: {twitch_video_id} ({file_path})")
+                    logger.info(f"Resuming incomplete upload: {twitch_video_id} ({file_path})")
                     quick_upload_video(google_session, file_path, entry["twitch_vod"], entry["upload_url"])
                 else:
-                    print(f"File in incomplete upload no longer exists: {twitch_video_id} ({file_path})")
+                    logger.error(f"File in incomplete upload no longer exists: {twitch_video_id} ({file_path})")
 
 
 def watch_recordings_folder(google: dict):
-    if DEBUG_ENABLED:
-        print("config:", config)
+    logger.debug(f"config: {config}")
 
     folder_to_watch = config["folder_to_watch"]
     folder_to_move_completed_uploads = config["folder_to_move_completed_uploads"]
@@ -238,8 +240,9 @@ def watch_recordings_folder(google: dict):
         videos_needing_upload: dict = {}
 
         if checks_count * config["check_folder_interval"] >= config["twitch_vod_refresh_rate"]:
-            if DEBUG_ENABLED:
-                print("Refreshing twitch vods", checks_count)
+
+            logger.debug(f"Refreshing twitch vods {checks_count}")
+
             twitch_videos = [
                 vid for vid in twitch_api.fetch_videos()
                 if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
@@ -257,8 +260,7 @@ def watch_recordings_folder(google: dict):
             file_modified_relative = time.time() - file_modified_time
             file_size = os.path.getsize(file_path)
 
-            if DEBUG_ENABLED:
-                print(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
+            logger.debug(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
 
             if 1 or file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
 
@@ -268,43 +270,43 @@ def watch_recordings_folder(google: dict):
 
                     # file creation time isn't used here because unix
                     if file_modified_time >= (vid_tstamp - config["file_modified_start_max_delta"]) and file_modified_time < (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"])):
-                        print_video_vod_info("ADDING VIDEO", file_path, file_modified_time, video["title"], vid_tstamp)
+                        print_video_vod_info("ADDING VIDEO", file_path, file_modified_time, video["title"], vid_tstamp, video["id"])
                         if check_vod_uploaded(video["id"]):
-                            print(f"Video was already uploaded:", video["id"])
+                            logger.info(f"Video was already uploaded: {video['id']}. Moving to uploaded folder.")
                             move_video_to_uploaded_folder(file_path)
                             break
                         if file_path not in videos_needing_upload:
                             videos_needing_upload[file_path] = video
                             break
 
-        if DEBUG_ENABLED:
-            print("Files that should be uploaded:", json.dumps(videos_needing_upload, indent=4))
+        logger.debug(f"Files that should be uploaded: {json.dumps(videos_needing_upload, indent=4)}")
+
         for video_path in videos_needing_upload:
             video_meta = videos_needing_upload[video_path]
 
-            if DEBUG_ENABLED:
-                print("Uploading:", video_path + "\nwith VOD:", video_meta)
-            else:
-                print("Uploading:", video_path + "\nwith VOD:", video_meta["title"] + "\n")
+            logger.debug(f"Uploading: {video_path}\nwith VOD: {video_meta}")
+
+            if not DEBUG_ENABLED:
+                logger.info(f"Uploading: {video_path}\nwith VOD: {video_meta['title']}\n")
+
             try:
                 quick_upload_video(google, video_path, video_meta)
             except ResumableUpload.ExceededQuota:
                 time_until_reset = get_time_until_quota_reset()
 
                 local_reset = datetime.now() + time_until_reset
-                print(f"The daily quota limit has been reached.")
-                print(f"Sleeping until midnight Pacific Time ({pretty_print_time(local_reset)} local time)")
+                logger.warning(f"The daily quota limit has been reached.")
+                logger.info(f"Sleeping until midnight Pacific Time ({pretty_print_time(local_reset)} local time)")
                 time.sleep(time_until_reset.total_seconds())
-
-        print()
 
         time.sleep(check_interval)
 
         checks_count += 1
 
+
 def get_twitch_vod_information():
     twitch_retries = 10
-    
+
     for i in range(twitch_retries):
         try:
             return [
@@ -312,13 +314,14 @@ def get_twitch_vod_information():
                 if twitch_api.get_video_duration(vid) > config["twitch_video_duration_threshold"]
             ]
         except twitch_api.TwitchAPIError as e:
-            print(f"Twitch API request unsuccessful ({e})")
+            logger.error(f"Twitch API request unsuccessful ({e})")
             if i + 1 == twitch_retries:
-                sys.exit(f"\nUnable to fetch twitch vod information after {twitch_retries} retries...")
+                logger.critical(f"\nUnable to fetch twitch vod information after {twitch_retries} retries...")
+                sys.exit(1)
                 # raise
             else:
                 time_to_sleep = (i + 1) * 60
-                print(f"Trying again in {time_to_sleep} seconds")
+                logger.info(f"Trying again in {time_to_sleep} seconds")
                 time.sleep(time_to_sleep)
 
 
@@ -329,9 +332,9 @@ def get_time_until_quota_reset():
     time_to_quota_reset = quota_reset - dt
 
     if DEBUG_ENABLED:
-        print("current time:", dt)
-        print("quota reset:", quota_reset)
-        print("time to quota reset:", time_to_quota_reset)
+        logger.debug(f"current time: {dt}")
+        logger.debug(f"quota reset: {quota_reset}")
+        logger.debug(f"time to quota reset: {time_to_quota_reset}")
 
     return time_to_quota_reset
 
@@ -340,22 +343,27 @@ def pretty_print_time(dt):
     return dt.strftime('%I:%M %p').lstrip("0")
 
 
-def print_video_vod_info(message, video_path, video_modified, vod_title, vod_date_created):
-    print(f"--- {message} ---")
-    print(f"| Video Path:     {video_path}")
-    print(f"| VOD Title:      {vod_title}")
-    print(f"| Video Modified: {video_modified}")
-    print(f"| VOD Timestamp:  {vod_date_created}")
-    print()
+def print_video_vod_info(message, video_path, video_modified, vod_title, vod_date_created, vod_id):
+    logger.info(f"""
+    --- {message} ---
+    | VOD ID:         {vod_id}
+    | Video Path:     {video_path}
+    | VOD Title:      {vod_title}
+    | Video Modified: {video_modified}
+    | VOD Timestamp:  {vod_date_created}\n""")
+
 
 def move_video_to_uploaded_folder(video_path):
     os.rename(video_path, config["folder_to_move_completed_uploads"] + "/" + os.path.basename(video_path))
 
+
 if __name__ == "__main__":
 
+    logger.info("Starting up...")
+
     if DRY_RUN_ENABLED:
-        print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
-        print("[DRY RUN] WARNING: Dry run enabled. Nothing will be uploaded")
+        logger.warning("[DRY RUN] Dry run enabled. Nothing will be uploaded")
+        logger.warning("[DRY RUN] Dry run enabled. Nothing will be uploaded")
 
     # save_in_progress_upload("googleapis.com/1232847827381", ROOT_DIR + "/videos/vid.mp4", {
     #     "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
