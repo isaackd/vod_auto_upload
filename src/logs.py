@@ -24,7 +24,7 @@ def setup_logger(debug_enabled=False):
     formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(message)s", "%Y-%m-%d %H:%M:%S")
     logging.Formatter.converter = time.gmtime
 
-    logger = logging.getLogger("ml")
+    logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
 
     fileHandler = logging.FileHandler(f"{LOGS_FILE_PATH}/{date.today()}.log")
