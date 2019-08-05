@@ -2,12 +2,16 @@ import math
 import os
 import json
 
+import logging
+
 from pathlib import Path
 
 
 class ConfigLoadError(Exception):
     pass
 
+
+logger = logging.getLogger()
 
 # videos directory isn't a good default value
 # just for easier testing
@@ -56,13 +60,12 @@ def load_config() -> dict:
                 config_dict = json.loads(config_file.read())
                 for key in DEFAULT_CONFIG:
                     if key not in config_dict:
-                        print(f"Invalid config: {config_dict}")
+                        logger.error(f"Invalid config: {config_dict}")
                         raise ConfigLoadError("A key is missing from the config file. Reverting to defaults...")
 
                 return config_dict
-            except (json.decoder.JSONDecodeError, ConfigLoadError) as e:
-                print("There was an error with the config file. Reverting to defaults...")
-                print("Error:", e)
+            except (json.decoder.JSONDecodeError, ConfigLoadError):
+                logger.error("There was an error with the config file. Reverting to defaults...", exc_info=True)
                 create_default_config()
                 return load_config()
     else:
