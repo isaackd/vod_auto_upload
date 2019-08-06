@@ -1,7 +1,10 @@
 # vod_auto_upload
 Automatically upload Twitch VODs to YouTube
 
-## config
+## Installing Dependencies
+`pip install requests requests_oauthlib pytz`
+
+## Config
 `folder_to_watch`: The folder where the local recordings are located
 
 `folder_to_move_completed_videos`: The folder where recordings that are successfully uploaded will be moved
