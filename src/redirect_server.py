@@ -5,6 +5,10 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 
+import logging
+
+logger = logging.getLogger()
+
 host_name = "localhost"
 host_port = 0
 
@@ -53,7 +57,7 @@ def start_server():
 
 def wait_for_auth_redirection(state_code, callback, after_server_start, *args):
     global my_server
-    print(time.asctime(), "Server Start - %s:%s" % my_server.server_address)
+    logger.debug(time.asctime(), "Server Start - %s:%s" % my_server.server_address)
 
     after_server_start(*args)
 
@@ -64,7 +68,7 @@ def wait_for_auth_redirection(state_code, callback, after_server_start, *args):
         my_server.handle_request()
 
     my_server.server_close()
-    print(time.asctime(), "Server Stop - %s:%s" % my_server.server_address)
+    logger.debug(time.asctime(), "Server Stop - %s:%s" % my_server.server_address)
 
 
 if __name__ == '__main__':

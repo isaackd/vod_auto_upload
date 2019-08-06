@@ -6,6 +6,9 @@ from datetime import datetime
 
 from config import config
 
+import logging
+logger = logging.getLogger()
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 
 TWITCH_CLIENT_ID = config["twitch_client_id"]
@@ -15,7 +18,7 @@ twitch_session = requests.Session()
 twitch_session.headers.update({"Client-ID": TWITCH_CLIENT_ID})
 
 if not config["twitch_client_id"] or not config["twitch_user_id"]:
-    print("Please enter your Twitch Client ID and Twitch User ID in data/config.json. (More info in the README)")
+    logger.critical("Please enter your Twitch Client ID and Twitch User ID in data/config.json. (More info in the README)")
     exit(1)
 
 
