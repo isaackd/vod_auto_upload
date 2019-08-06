@@ -21,7 +21,7 @@ class StreamFilter():
 
 
 def setup_logger(debug_enabled=False):
-    formatter = logging.Formatter("[%(levelname)s] %(asctime)s %(message)s", "%Y-%m-%d %H:%M:%S")
+    formatter = logging.Formatter("%(asctime)s %(levelname)s | [%(module)s.py]: %(message)s", "%Y-%m-%d %H:%M:%S")
     logging.Formatter.converter = time.gmtime
 
     logger = logging.getLogger()
