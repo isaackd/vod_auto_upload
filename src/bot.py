@@ -16,7 +16,7 @@ from logs import setup_logger
 # Google APIs reset quota at midnight PT
 pacific_tz = pytz.timezone("America/Los_Angeles")
 
-DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
+DRY_RUN_ENABLED = "--dry-run" in sys.argv
 
 DEBUG_ENABLED = "--debug" in sys.argv
 
