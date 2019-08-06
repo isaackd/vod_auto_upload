@@ -27,6 +27,11 @@ class TwitchAPIError(Exception):
 
 
 def fetch_videos() -> dict:
+    """
+    Retrieves the 20 most recent VODs from the
+    channel specified by 'twitch_user_id' in config.json.
+    """
+
     endpoint = "https://api.twitch.tv/helix/videos"
     params = {"user_id": USER_ID}
 
@@ -38,12 +43,15 @@ def fetch_videos() -> dict:
 
 
 def get_video_timestamp(video: dict) -> float:
+    """Converts the Twitch API provided datetime string into a Unix timestamp."""
     created_string = video["created_at"]
+    # Parse the date string into a datetime object
     created_time = datetime.strptime(created_string, "%Y-%m-%dT%H:%M:%SZ")
     return created_time.timestamp()
 
 
 def get_video_duration(video: dict) -> int:
+    """Converts the video length string provided by the Twitch API into seconds."""
     dur = video["duration"]
 
     seconds = 0

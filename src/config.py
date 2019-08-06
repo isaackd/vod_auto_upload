@@ -15,6 +15,7 @@ logger = logging.getLogger()
 
 # videos directory isn't a good default value
 # just for easier testing
+# actually there should probably just be no default video directory
 HOME_DIRECTORY = str(Path.home()).replace("\\", "/")
 
 DEFAULT_WATCH_FOLDER = f"{HOME_DIRECTORY}/Videos"
@@ -54,6 +55,10 @@ def create_default_config():
 
 
 def load_config() -> dict:
+    """
+    Tries to load config.json, creating one with the default values
+    if there is an error or the config does not exist.
+    """
     if os.path.isfile(ROOT_DIR + "/data/config.json"):
         with open(ROOT_DIR + "/data/config.json", "r") as config_file:
             try:

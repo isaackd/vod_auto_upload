@@ -1,3 +1,8 @@
+"""
+Handles setting up the root logger so all modules can consistent
+formatting and filtering
+"""
+
 import os
 import logging
 import time
@@ -17,6 +22,7 @@ class StreamFilter():
         self.__debug_enabled = debug_enabled
 
     def filter(self, logRecord):
+        # Filter out debug records unless debug mode is enabled
         return logRecord.levelno != 10 or self.__debug_enabled
 
 

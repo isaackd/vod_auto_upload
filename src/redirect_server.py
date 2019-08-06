@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Simple server to receive the authorization code from Google after the user is redirected
+"""Simple server to receive the authorization code from Google after the user is redirected."""
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
@@ -22,6 +22,7 @@ class MyHandler(BaseHTTPRequestHandler):
 
         query_part = self.path.split("?")
         query_params = {}
+
         if len(query_part) >= 2:
             qp_pairs = query_part[1].split("&")
             for key, value in (pair.split("=") for pair in qp_pairs):

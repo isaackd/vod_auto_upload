@@ -9,6 +9,7 @@ logger = logging.getLogger()
 
 
 class ResumableUpload():
+    """Handles starting a resumable upload with YouTube and uploading video data (in chunks) to the upload URL."""
 
     class ReachedRetryMax(Exception):
         pass
@@ -27,7 +28,7 @@ class ResumableUpload():
 
         self.file_size = os.path.getsize(self.file_handle.name)
 
-        # cap chunk size at 512MiB
+        # Cap chunk size at 512MiB
         self.chunk_size = chunk_size if chunk_size else min(self.file_size / 10, 536_870_912)
         self.chunk_size = 262144 * round(self.chunk_size / 262144)
         logger.info(f"Resumable Upload Chunk Size: {self.chunk_size}")
@@ -40,6 +41,12 @@ class ResumableUpload():
         self.uploaded_bytes = 0
 
     def request_upload_url(self):
+        """
+        Requests a resumable URL to upload video data to.
+        If successful, returns the URL as a str.
+        When an error is encountered, retries self.max_retries times, eventually
+        raising ResumableUpload.ReachedRetryMax if self.max_retries is exceeded.
+        """
 
         params = {"uploadType": "resumable", "part": "id,status,snippet"}
 
@@ -52,8 +59,8 @@ class ResumableUpload():
         for i in range(self.max_retries):
             try:
                 r = self.session.post(
-                    "https://www.googleapis.com/upload/youtube/v3/videos", 
-                    data=json.dumps(self.video_metadata), 
+                    "https://www.googleapis.com/upload/youtube/v3/videos",
+                    data=json.dumps(self.video_metadata),
                     params=params,
                     headers=headers
                 )
@@ -87,6 +94,11 @@ class ResumableUpload():
                 time.sleep(sleep_seconds)
 
     def get_upload_status(self):
+        """
+        Returns a Requests Response with information such as the amount of bytes the server
+        received from our last data upload.
+        """
+
         headers = {"Content-Length": "0", "Content-Range": f"bytes */{self.file_size}"}
         for i in range(self.max_retries):
             try:
@@ -100,6 +112,10 @@ class ResumableUpload():
                 self.sync_with_upload_status()
 
     def sync_with_upload_status(self, status_response=None):
+        """
+        Synchronizes the internal uploaded bytes amount with the amount of
+        bytes that the server actually received.
+        """
 
         if not status_response:
             status_response = self.get_upload_status()
@@ -114,7 +130,9 @@ class ResumableUpload():
             else:
                 self.uploaded_bytes = 0
 
-    def get_next_retry_sleep(self):
+    def get_next_retry_sleep(self) -> int:
+        """Returns a length (in seconds) to sleep for that exponentially increases with each retry"""
+
         self.retries += 1
 
         logger.warning(f"Retries: {self.retries}, Max: {self.max_retries}")
@@ -128,6 +146,10 @@ class ResumableUpload():
         return sleep_seconds
 
     def upload(self, progress_callback=None):
+        """
+        Kicks off the actual upload. Checks the status of the upload after each chunk
+        is uploaded, raising any errors and synchronizing with the server as needed.
+        """
 
         upload_status = self.get_upload_status()
         self.sync_with_upload_status(upload_status)
@@ -170,6 +192,7 @@ class ResumableUpload():
                     break
 
     def upload_next_chunk(self):
+        """Uploads chunks of the file (size according to self.chunk_size) to self.upload_url"""
         self.file_handle.seek(self.uploaded_bytes)
         while self.uploaded_bytes < self.file_size:
             chunk = self.file_handle.read(self.chunk_size)

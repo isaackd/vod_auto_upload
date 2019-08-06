@@ -1,3 +1,8 @@
+"""
+Handles retrieving and saving OAuth credentials used to initialize an
+authenticated Requests Session for calling the YouTube Data API.
+"""
+
 import os
 import json
 import time
@@ -21,11 +26,13 @@ if not config["youtube_client_id"] or not config["youtube_client_secret"]:
 
 
 def token_saver(auth_data):
+    """Writes the OAuth token (and related data) to AUTH_FILE_PATH."""
     with open(AUTH_FILE_PATH, "w") as auth_file:
         auth_file.write(json.dumps(auth_data, indent=4))
 
 
 def after_server_start(authorization_url):
+    """Executed by redirect_server.py after the server is started."""
     print("The authorization url should have opened in your default browser. If it hasn\'t, please go here to authorize:", authorization_url)
     webbrowser.open(authorization_url)
 
@@ -45,13 +52,19 @@ scope = [
 
 
 def test_auth(google_session: dict):
-    # Fetch a protected resource, i.e. user profile
+    """
+    Fetches a protected resource, i.e. user profile.
+    Used for testing OAuth credentials.
+    """
     r = google_session.get("https://www.googleapis.com/oauth2/v1/userinfo")
     print(json.dumps(json.loads(r.text), indent=4))
 
 
 def init_google_session():
+    """Initializes a Requests Session with the proper headers for calling Google APIs requiring OAuth (YouTube in this case)"""
 
+    # A server is started even when we already have credentials saved from an earlier run
+    # in case the token needs to be refreshed.
     server_addr = start_server()
 
     redirect_host = server_addr[0] + ":" + str(server_addr[1])
@@ -93,8 +106,8 @@ def init_google_session():
             token_updater=token_saver
         )
 
-        # offline for refresh token
-        # force to always make user click authorize
+        # Offline for refresh token
+        # Force to always make user click authorize
         authorization_url, state = google.authorization_url(
             authorization_base_url,
             access_type="offline",

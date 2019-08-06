@@ -17,7 +17,7 @@ from logs import setup_logger
 pacific_tz = pytz.timezone("America/Los_Angeles")
 
 DRY_RUN_ENABLED = "--dry-run" in sys.argv or 1
-# TODO: use logging for this
+
 DEBUG_ENABLED = "--debug" in sys.argv
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
@@ -30,6 +30,13 @@ logger = setup_logger(debug_enabled=DEBUG_ENABLED)
 
 
 def shorten_video_title(video_title: str) -> str:
+    """
+    YouTube video titles have a maximum length of
+    100 characters (assuming english), while Twitch allows 140.
+    Replaces the last 3 characters of a 100 length str with ellipsis (...).
+    Also removes the string ' - !songrequest' if it's present.
+    """
+
     if " - !songrequest" in video_title:
         video_title = video_title.split(" - !songrequest")[0]
 
@@ -40,6 +47,11 @@ def shorten_video_title(video_title: str) -> str:
 
 
 def mark_twitch_vod_as_uploaded(twitch_vod_id: str):
+    """
+    Marks a given Twitch VOD's ID as uploaded so that we don't
+    accidentally upload the same video twice.
+    """
+
     if os.path.isfile(UPLOAD_HISTORY_PATH):
         with open(UPLOAD_HISTORY_PATH, "a") as file:
             file.write(twitch_vod_id + "\n")
@@ -49,6 +61,8 @@ def mark_twitch_vod_as_uploaded(twitch_vod_id: str):
 
 
 def check_vod_uploaded(twitch_vod_id: str) -> bool:
+    """Checks upload_history.txt for a given Twitch ID"""
+
     if os.path.isfile(UPLOAD_HISTORY_PATH):
         with open(UPLOAD_HISTORY_PATH, "r") as file:
             for vod_id in file:
@@ -60,6 +74,11 @@ def check_vod_uploaded(twitch_vod_id: str) -> bool:
 
 
 def save_in_progress_upload(upload_url: str, video_path: str, twitch_vod: dict):
+    """
+    Creates an entry in state.json with a given video's
+    upload url, file path, and Twitch VOD information, so that an
+    interrupted upload can be resumed at a later date.
+    """
 
     def create_json_structure(file):
         contents = {}
@@ -97,6 +116,8 @@ def save_in_progress_upload(upload_url: str, video_path: str, twitch_vod: dict):
 
 
 def remove_in_progress_upload(twitch_vod_id: str) -> bool:
+    """Removes a given entry from state.json"""
+
     if os.path.isfile(STATE_FILE_PATH):
         with open(STATE_FILE_PATH, "r+", encoding="utf8") as file:
             try:
@@ -116,6 +137,10 @@ def remove_in_progress_upload(twitch_vod_id: str) -> bool:
 
 
 def upload_video(google_session: dict, video_path: str, twitch_video: dict, progress_callback=None, upload_url: str = None):
+    """
+    Starts a resumable upload, configures the metadata used for the YouTube video (given by twitch_video),
+    and uploads the file at video_path.
+    """
 
     def start_resumable_download(google_session: dict, video_path: str, video_metadata: dict, chunk_size=None, upload_url: str = None):
         if not os.path.isfile(video_path):
@@ -167,6 +192,7 @@ def upload_video(google_session: dict, video_path: str, twitch_video: dict, prog
 
 
 def quick_upload_video(google_session: dict, video_path: str, video_meta: dict = None, upload_url: str = None):
+    """Handles starting a resumable upload automatically, and just uploads a video with the given metadata"""
 
     file_size = os.path.getsize(video_path)
 
@@ -198,14 +224,17 @@ def quick_upload_video(google_session: dict, video_path: str, video_meta: dict =
         logger.info(f"\ntitle: {title}\nchannel: {channel} ({channel_id})\nlink: {link}\nprivacy: {privacy}\npublished: {published}")
 
         mark_twitch_vod_as_uploaded(video_meta["id"])
-
         move_video_to_uploaded_folder(video_path)
-
     else:
         logger.error(f"Unable to upload video: {video_path}")
 
 
 def check_in_progress_uploads(google_session: dict):
+    """
+    Checks to see if there were any interrupted uploads in state.json,
+    and uploads them if so.
+    """
+
     if os.path.isfile(STATE_FILE_PATH):
         with open(STATE_FILE_PATH, "r", encoding="utf8") as file:
             contents = json.loads(file.read())
@@ -221,6 +250,15 @@ def check_in_progress_uploads(google_session: dict):
 
 
 def watch_recordings_folder(google: dict):
+    """
+    Watches the recodings folder for new video files to show up that need to be uploaded.
+    Once a Twitch VOD corresponding to a video file is found, the video is uploaded using
+    the metadata from the Twitch VOD as it's own.
+
+    Refreshes the Twitch VOD information every twitch_vod_refresh_rate seconds (specified in config.json).
+    If no YouTube API quota remains, sleeps until midnight PT (+ 10 minutes to be safe).
+    """
+
     logger.debug(f"config: {config}")
 
     folder_to_watch = config["folder_to_watch"]
@@ -305,6 +343,7 @@ def watch_recordings_folder(google: dict):
 
 
 def get_twitch_vod_information():
+    """Retrieves and filters VOD information for the channel specified in config.json"""
     twitch_retries = 10
 
     for i in range(twitch_retries):
@@ -326,6 +365,8 @@ def get_twitch_vod_information():
 
 
 def get_time_until_quota_reset():
+    """Calculates the amount of time until midnight Pacific Time (+ 10 minutes to be safe)"""
+
     dt = datetime.now().astimezone(pacific_tz)
     quota_reset = (dt + timedelta(days=1)).replace(hour=0, minute=10, second=0).astimezone(pacific_tz)
 
@@ -365,6 +406,10 @@ if __name__ == "__main__":
         logger.warning("[DRY RUN] Dry run enabled. Nothing will be uploaded")
         logger.warning("[DRY RUN] Dry run enabled. Nothing will be uploaded")
 
+    google = init_google_session()
+    check_in_progress_uploads(google)
+    watch_recordings_folder(google)
+
     # save_in_progress_upload("googleapis.com/1232847827381", ROOT_DIR + "/videos/vid.mp4", {
     #     "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
     #     "description": "",
@@ -373,14 +418,3 @@ if __name__ == "__main__":
     # })
 
     # remove_in_progress_upload("426700335")
-
-    google = init_google_session()
-
-    check_in_progress_uploads(google)
-
-    # if google:
-    #     quick_upload_video(google, ROOT_DIR + "/videos/vid.mp4")
-    # else:
-    #     print("Unable to initialize a Google session")
-
-    watch_recordings_folder(google)
