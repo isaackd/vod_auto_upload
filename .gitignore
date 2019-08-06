@@ -3,3 +3,4 @@ __pycache__
 data/*
 !data/test_data.json
 videos
+logs

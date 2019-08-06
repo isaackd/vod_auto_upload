@@ -1,3 +1,8 @@
+"""
+Handles retrieving and saving OAuth credentials used to initialize an
+authenticated Requests Session for calling the YouTube Data API.
+"""
+
 import os
 import json
 import time
@@ -9,20 +14,28 @@ from redirect_server import start_server, wait_for_auth_redirection
 
 from config import config
 
+import logging
+logger = logging.getLogger()
+
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 AUTH_FILE_PATH = ROOT_DIR + "/data/auth.json"
 
+if not config["youtube_client_id"] or not config["youtube_client_secret"]:
+    print("Please enter your YouTube Client ID and YouTube Client Secret in data/config.json. (More info in the README)")
+    exit(1)
+
+
 def token_saver(auth_data):
+    """Writes the OAuth token (and related data) to AUTH_FILE_PATH."""
     with open(AUTH_FILE_PATH, "w") as auth_file:
         auth_file.write(json.dumps(auth_data, indent=4))
 
+
 def after_server_start(authorization_url):
+    """Executed by redirect_server.py after the server is started."""
     print("The authorization url should have opened in your default browser. If it hasn\'t, please go here to authorize:", authorization_url)
     webbrowser.open(authorization_url)
 
-# Credentials you get from registering a new application
-# client_id = "687701237754-cmhbj9toli2h5nhfirm2u9igeafuittn.apps.googleusercontent.com"
-# client_secret = "-oPHEIWqGP9FLdxpomeyMcN6"
 
 client_id = config["youtube_client_id"]
 client_secret = config["youtube_client_secret"]
@@ -37,13 +50,21 @@ scope = [
     "https://www.googleapis.com/auth/youtube.upload"
 ]
 
+
 def test_auth(google_session: dict):
-     # Fetch a protected resource, i.e. user profile
+    """
+    Fetches a protected resource, i.e. user profile.
+    Used for testing OAuth credentials.
+    """
     r = google_session.get("https://www.googleapis.com/oauth2/v1/userinfo")
     print(json.dumps(json.loads(r.text), indent=4))
 
-def init_google_session():
 
+def init_google_session():
+    """Initializes a Requests Session with the proper headers for calling Google APIs requiring OAuth (YouTube in this case)"""
+
+    # A server is started even when we already have credentials saved from an earlier run
+    # in case the token needs to be refreshed.
     server_addr = start_server()
 
     redirect_host = server_addr[0] + ":" + str(server_addr[1])
@@ -63,11 +84,11 @@ def init_google_session():
             auth_file.write(json.dumps(auth_data, indent=4))
 
         google = OAuth2Session(
-            client_id, 
+            client_id,
             scope=scope,
             token=auth_data,
-            redirect_uri=redirect_uri, 
-            auto_refresh_url=token_url, 
+            redirect_uri=redirect_uri,
+            auto_refresh_url=token_url,
             auto_refresh_kwargs={"client_id": client_id, "client_secret": client_secret},
             token_updater=token_saver
         )
@@ -77,19 +98,19 @@ def init_google_session():
     else:
 
         google = OAuth2Session(
-            client_id, 
+            client_id,
             scope=scope,
-            redirect_uri=redirect_uri, 
-            auto_refresh_url=token_url, 
+            redirect_uri=redirect_uri,
+            auto_refresh_url=token_url,
             auto_refresh_kwargs={"client_id": client_id, "client_secret": client_secret},
             token_updater=token_saver
         )
 
-        # offline for refresh token
-        # force to always make user click authorize
+        # Offline for refresh token
+        # Force to always make user click authorize
         authorization_url, state = google.authorization_url(
             authorization_base_url,
-            access_type="offline", 
+            access_type="offline",
             prompt="select_account"
         )
         redirect_response = None
@@ -105,21 +126,21 @@ def init_google_session():
 
         if redirect_response:
 
-            print("Authorization was granted. Fetching auth tokens...")
+            logger.info("Authorization was granted. Fetching auth tokens...")
 
             # Fetch the access token (and other related data)
             auth_data = google.fetch_token(
-                token_url, 
+                token_url,
                 client_secret=client_secret,
                 authorization_response=redirect_response
             )
 
-            print("Received auth tokens")
+            logger.info("Received auth tokens")
             token_saver(auth_data)
 
             return google
         else:
-            print("Authorization must be provided in order to upload videos on your behalf")
+            logger.error("Authorization must be provided in order to upload videos on your behalf")
             return None
 
 

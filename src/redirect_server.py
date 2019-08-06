@@ -1,19 +1,20 @@
 #!/usr/bin/python3
 
-# Simple server to receive the authorization code from Google after the user is redirected
+"""Simple server to receive the authorization code from Google after the user is redirected."""
 
-import socket
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 
-from config import config
+import logging
+
+logger = logging.getLogger()
 
 host_name = "localhost"
 host_port = 0
 
 server_should_stop = False
-
 my_server = None
+
 
 class MyHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -21,6 +22,7 @@ class MyHandler(BaseHTTPRequestHandler):
 
         query_part = self.path.split("?")
         query_params = {}
+
         if len(query_part) >= 2:
             qp_pairs = query_part[1].split("&")
             for key, value in (pair.split("=") for pair in qp_pairs):
@@ -47,14 +49,16 @@ class MyHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         return
 
+
 def start_server():
     global my_server
     my_server = HTTPServer((host_name, host_port), MyHandler)
     return my_server.server_address
 
+
 def wait_for_auth_redirection(state_code, callback, after_server_start, *args):
     global my_server
-    print(time.asctime(), "Server Start - %s:%s" % my_server.server_address)
+    logger.debug(f"{time.asctime()} Server Start - {my_server.server_address}")
 
     after_server_start(*args)
 
@@ -65,7 +69,8 @@ def wait_for_auth_redirection(state_code, callback, after_server_start, *args):
         my_server.handle_request()
 
     my_server.server_close()
-    print(time.asctime(), "Server Stop - %s:%s" % my_server.server_address)
+    logger.debug(f"{time.asctime()} Server Stop - {my_server.server_address}")
+
 
 if __name__ == '__main__':
     start_server()
