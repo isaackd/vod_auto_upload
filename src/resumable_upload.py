@@ -1,3 +1,8 @@
+"""
+Home of the ResumableUpload class used for starting a resumable upload on YouTube's
+servers so that a video can then be uploaded to it.
+"""
+
 import requests
 import time
 import os
