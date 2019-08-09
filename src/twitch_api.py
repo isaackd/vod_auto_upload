@@ -1,3 +1,8 @@
+"""
+Handles fetching Twitch VODs, converting duration strings into seconds,
+and converting date strings into datetime objects.
+"""
+
 import os
 import requests
 import json
@@ -26,14 +31,14 @@ class TwitchAPIError(Exception):
     pass
 
 
-def fetch_videos() -> dict:
+def fetch_videos(first=100) -> dict:
     """
     Retrieves the 20 most recent VODs from the
     channel specified by 'twitch_user_id' in config.json.
     """
 
     endpoint = "https://api.twitch.tv/helix/videos"
-    params = {"user_id": USER_ID}
+    params = {"user_id": USER_ID, "first": str(first)}
 
     with twitch_session.get(endpoint, params=params) as response:
         if response.ok:
@@ -77,4 +82,4 @@ if __name__ == '__main__':
     #     data = json.loads(file.read())
     #     for video in data:
     #         print(get_video_timestamp(video), video["created_at"])
-            # print(get_video_duration(video), video["duration"])
+    #         print(get_video_duration(video), video["duration"])
