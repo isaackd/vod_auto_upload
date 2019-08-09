@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 """Simple server to receive the authorization code from Google after the user is redirected."""
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
