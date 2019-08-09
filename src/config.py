@@ -1,3 +1,5 @@
+"""Handles creating and loading the config file (data/config.json)."""
+
 import math
 import os
 import json
