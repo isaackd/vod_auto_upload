@@ -1,3 +1,9 @@
+"""
+Main File
+Watches the folder for new videos, matches them with their VODs, then uploads them to YouTube.
+Handles quota exceeding, resuming interrupted uploads, and refreshing Twitch VOD information.
+"""
+
 import os
 import sys
 import time
@@ -9,16 +15,25 @@ import twitch_api
 from resumable_upload import ResumableUpload
 from youtube_auth import init_google_session
 
+from upload import quick_upload_video
+
+from state import check_in_progress_uploads, move_video_to_uploaded_folder
+from state import check_vod_uploaded
+
 from config import config
 
 from logs import setup_logger
 
+# Command Line Arguments
+DRY_RUN_ENABLED = "--dry-run" in sys.argv
+DEBUG_ENABLED = "--debug" in sys.argv
+
+MATCH_VODS_ONLY = "--match-vods-only" in sys.argv
+IGNORE_FILE_SIZE_AND_AGE = "--no-size-age" in sys.argv
+
 # Google APIs reset quota at midnight PT
 pacific_tz = pytz.timezone("America/Los_Angeles")
 
-DRY_RUN_ENABLED = "--dry-run" in sys.argv
-
-DEBUG_ENABLED = "--debug" in sys.argv
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 
@@ -27,226 +42,6 @@ CONFIG_FILE_PATH = ROOT_DIR + "/data/config.json"
 UPLOAD_HISTORY_PATH = ROOT_DIR + "/data/upload_history.txt"
 
 logger = setup_logger(debug_enabled=DEBUG_ENABLED)
-
-
-def shorten_video_title(video_title: str) -> str:
-    """
-    YouTube video titles have a maximum length of
-    100 characters (assuming english), while Twitch allows 140.
-    Replaces the last 3 characters of a 100 length str with ellipsis (...).
-    Also removes the string ' - !songrequest' if it's present.
-    """
-
-    if " - !songrequest" in video_title:
-        video_title = video_title.split(" - !songrequest")[0]
-
-    if len(video_title) > 100:
-        video_title = video_title[0:97] + "..."
-
-    return video_title
-
-
-def mark_twitch_vod_as_uploaded(twitch_vod_id: str):
-    """
-    Marks a given Twitch VOD's ID as uploaded so that we don't
-    accidentally upload the same video twice.
-    """
-
-    if os.path.isfile(UPLOAD_HISTORY_PATH):
-        with open(UPLOAD_HISTORY_PATH, "a") as file:
-            file.write(twitch_vod_id + "\n")
-    else:
-        with open(UPLOAD_HISTORY_PATH, "w") as file:
-            file.write(twitch_vod_id + "\n")
-
-
-def check_vod_uploaded(twitch_vod_id: str) -> bool:
-    """Checks upload_history.txt for a given Twitch ID"""
-
-    if os.path.isfile(UPLOAD_HISTORY_PATH):
-        with open(UPLOAD_HISTORY_PATH, "r") as file:
-            for vod_id in file:
-                vod_id = vod_id.strip()
-                if vod_id == twitch_vod_id:
-                    return True
-
-    return False
-
-
-def save_in_progress_upload(upload_url: str, video_path: str, twitch_vod: dict):
-    """
-    Creates an entry in state.json with a given video's
-    upload url, file path, and Twitch VOD information, so that an
-    interrupted upload can be resumed at a later date.
-    """
-
-    def create_json_structure(file):
-        contents = {}
-        contents[twitch_vod["id"]] = {
-            "upload_url": upload_url,
-            "video_path": video_path,
-            "twitch_vod": twitch_vod
-        }
-
-        file.write(json.dumps(contents, indent=4))
-
-    if os.path.isfile(STATE_FILE_PATH):
-        with open(STATE_FILE_PATH, "r+", encoding="utf8") as file:
-            try:
-                contents = json.loads(file.read())
-
-                contents[twitch_vod["id"]] = {
-                    "upload_url": upload_url,
-                    "video_path": video_path,
-                    "twitch_vod": twitch_vod
-                }
-
-                file.truncate(0)
-                file.seek(0)
-
-                file.write(json.dumps(contents, indent=4))
-
-            except json.decoder.JSONDecodeError:
-                file.truncate(0)
-                file.seek(0)
-                create_json_structure(file)
-    else:
-        with open(STATE_FILE_PATH, "w", encoding="utf8") as file:
-            create_json_structure(file)
-
-
-def remove_in_progress_upload(twitch_vod_id: str) -> bool:
-    """Removes a given entry from state.json"""
-
-    if os.path.isfile(STATE_FILE_PATH):
-        with open(STATE_FILE_PATH, "r+", encoding="utf8") as file:
-            try:
-                contents = json.loads(file.read())
-                contents.pop(twitch_vod_id, None)
-
-                file.truncate(0)
-                file.seek(0)
-
-                file.write(json.dumps(contents, indent=4))
-                return True
-
-            except json.decoder.JSONDecodeError:
-                return False
-    else:
-        return False
-
-
-def upload_video(google_session: dict, video_path: str, twitch_video: dict, progress_callback=None, upload_url: str = None):
-    """
-    Starts a resumable upload, configures the metadata used for the YouTube video (given by twitch_video),
-    and uploads the file at video_path.
-    """
-
-    def start_resumable_download(google_session: dict, video_path: str, video_metadata: dict, chunk_size=None, upload_url: str = None):
-        if not os.path.isfile(video_path):
-            logger.error(f"Invalid file path: {video_path}")
-            return
-
-        video = open(video_path, "rb")
-        resumable_upload = ResumableUpload(video_metadata, video, chunk_size=chunk_size, upload_url=upload_url, session=google_session)
-        return resumable_upload, video
-
-    video_title = twitch_video["title"]
-    if len(video_title) > 100:
-        video_title = shorten_video_title(video_title)
-
-    original_title = twitch_video["title"]
-    twitch_url = twitch_video["url"]
-    video_desc = f"{original_title}\nTwitch Video: {twitch_url}\n" + twitch_video["description"]
-
-    video_meta = {
-        "snippet": {
-            "title": video_title,
-            "description": video_desc,
-            "categoryId": "20"
-        },
-        "status": {
-            "privacyStatus": "unlisted"
-        }
-    }
-
-    if not DRY_RUN_ENABLED:
-        try:
-            resumable_upload, video = start_resumable_download(google_session, video_path, video_meta, upload_url=upload_url)
-            if resumable_upload.upload_url:
-                save_in_progress_upload(resumable_upload.upload_url, video_path, twitch_video)
-                response = resumable_upload.upload(progress_callback)
-                video.close()
-                return response
-            else:
-                raise ResumableUpload.ReachedRetryMax
-        except ResumableUpload.ReachedRetryMax:
-            logger.error("Reached the maximum amount of retries", exc_info=True)
-        finally:
-            remove_in_progress_upload(twitch_video["id"])
-    else:
-        logger.info(f"[DRY RUN] Video would now be uploaded in a real run:\n    video path: {video_path}\n    twitch video: {twitch_video}\n    upload url: {upload_url}")
-        # save_in_progress_upload("https://example.org", video_path, twitch_video)
-        # time.sleep(5)
-        # remove_in_progress_upload(twitch_video["id"])
-
-
-def quick_upload_video(google_session: dict, video_path: str, video_meta: dict = None, upload_url: str = None):
-    """Handles starting a resumable upload automatically, and just uploads a video with the given metadata"""
-
-    file_size = os.path.getsize(video_path)
-
-    def prog(status, response, uploaded_bytes):
-        prog = (uploaded_bytes / file_size) * 100
-        logger.info(f"[PROGRESS] status: {status} {prog:.2f}%")
-        # print(f"[PROGRESS] status: {status} {response.headers} {response.content}\nREQUEST HEADERS: {response.request.headers}")
-
-    if not video_meta:
-        video_meta = {
-            "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
-            "description": "",
-            "url": "https://www.twitch.tv/videos/426700335",
-            "id": "426700335"
-        }
-
-    res = upload_video(google_session, video_path, video_meta, progress_callback=prog, upload_url=upload_url)
-    if res and res.status_code in (200, 201):
-
-        res_json = res.json()
-        logger.info(f"Final response: {res_json}")
-
-        title = res_json["snippet"]["title"]
-        channel = res_json["snippet"]["channelTitle"]
-        channel_id = res_json["snippet"]["channelId"]
-        link = "https://youtube.com/watch?v=" + res_json["id"]
-        privacy = res_json["status"]["privacyStatus"]
-        published = res_json["snippet"]["publishedAt"]
-        logger.info(f"\ntitle: {title}\nchannel: {channel} ({channel_id})\nlink: {link}\nprivacy: {privacy}\npublished: {published}")
-
-        mark_twitch_vod_as_uploaded(video_meta["id"])
-        move_video_to_uploaded_folder(video_path)
-    else:
-        logger.error(f"Unable to upload video: {video_path}")
-
-
-def check_in_progress_uploads(google_session: dict):
-    """
-    Checks to see if there were any interrupted uploads in state.json,
-    and uploads them if so.
-    """
-
-    if os.path.isfile(STATE_FILE_PATH):
-        with open(STATE_FILE_PATH, "r", encoding="utf8") as file:
-            contents = json.loads(file.read())
-
-            for twitch_video_id in contents:
-                entry = contents[twitch_video_id]
-                file_path = entry["video_path"]
-                if os.path.isfile(file_path):
-                    logger.info(f"Resuming incomplete upload: {twitch_video_id} ({file_path})")
-                    quick_upload_video(google_session, file_path, entry["twitch_vod"], entry["upload_url"])
-                else:
-                    logger.error(f"File in incomplete upload no longer exists: {twitch_video_id} ({file_path})")
 
 
 def watch_recordings_folder(google: dict):
@@ -261,7 +56,6 @@ def watch_recordings_folder(google: dict):
 
     logger.debug(f"config: {config}")
 
-    folder_to_watch = config["folder_to_watch"]
     folder_to_move_completed_uploads = config["folder_to_move_completed_uploads"]
 
     check_interval = config["check_folder_interval"]
@@ -287,35 +81,22 @@ def watch_recordings_folder(google: dict):
             ]
             checks_count = 0
 
-        video_files = set(
-            os.path.join(folder_to_watch, path) for path in os.listdir(folder_to_watch)
-            if os.path.isfile(os.path.join(folder_to_watch, path)) and path.endswith(".mp4")
-        )
+        video_files: set = get_valid_videos_in_watch_folder()
 
         for file_path in video_files:
-
             file_modified_time = os.path.getmtime(file_path)
-            file_modified_relative = time.time() - file_modified_time
-            file_size = os.path.getsize(file_path)
+            vod = match_video_with_vod(file_path, file_modified_time, twitch_videos)
 
-            logger.debug(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
+            vod_tstamp = twitch_api.get_video_timestamp(vod)
 
-            if 1 or file_size >= config["file_size_threshold"] and file_modified_relative >= config["file_age_threshold"]:
+            if check_vod_uploaded(vod["id"]):
+                print_video_vod_info("VIDEO UPLOADED PREVIOUSLY", file_path, file_modified_time, vod["title"], vod_tstamp, vod["id"])
+                logger.info(f"Video was already uploaded: {vod['id']}. Moving to uploaded folder.")
+                move_video_to_uploaded_folder(file_path)
 
-                for video in twitch_videos:
-                    vid_tstamp = twitch_api.get_video_timestamp(video)
-                    vid_duration = twitch_api.get_video_duration(video)
-
-                    # file creation time isn't used here because unix
-                    if file_modified_time >= (vid_tstamp - config["file_modified_start_max_delta"]) and file_modified_time < (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"])):
-                        print_video_vod_info("ADDING VIDEO", file_path, file_modified_time, video["title"], vid_tstamp, video["id"])
-                        if check_vod_uploaded(video["id"]):
-                            logger.info(f"Video was already uploaded: {video['id']}. Moving to uploaded folder.")
-                            move_video_to_uploaded_folder(file_path)
-                            break
-                        if file_path not in videos_needing_upload:
-                            videos_needing_upload[file_path] = video
-                            break
+            elif file_path not in videos_needing_upload:
+                print_video_vod_info("ADDING VIDEO", file_path, file_modified_time, vod["title"], vod_tstamp, vod["id"])
+                videos_needing_upload[file_path] = vod
 
         logger.debug(f"Files that should be uploaded: {json.dumps(videos_needing_upload, indent=4)}")
 
@@ -328,7 +109,7 @@ def watch_recordings_folder(google: dict):
                 logger.info(f"Uploading: {video_path}\nwith VOD: {video_meta['title']}\n")
 
             try:
-                quick_upload_video(google, video_path, video_meta)
+                quick_upload_video(google, video_path, video_meta, DRY_RUN_ENABLED=DRY_RUN_ENABLED)
             except ResumableUpload.ExceededQuota:
                 time_until_reset = get_time_until_quota_reset()
 
@@ -340,6 +121,53 @@ def watch_recordings_folder(google: dict):
         time.sleep(check_interval)
 
         checks_count += 1
+
+
+def get_valid_videos_in_watch_folder() -> set:
+    folder_to_watch = config["folder_to_watch"]
+    file_size_threshold = config["file_size_threshold"]
+    file_age_threshold = config["file_age_threshold"]
+
+    video_files = set(
+        os.path.join(folder_to_watch, path) for path in os.listdir(folder_to_watch)
+        if os.path.isfile(os.path.join(folder_to_watch, path)) and path.endswith(".mp4")
+    )
+
+    def filter_videos(file_path):
+        # File creation time isn't used here because unix
+        file_modified_time = os.path.getmtime(file_path)
+        file_modified_relative = time.time() - file_modified_time
+        file_size = os.path.getsize(file_path)
+
+        logger.debug(f"{file_path}: {file_modified_time} | {file_modified_relative} | {file_size}")
+
+        meets_file_size = file_size >= file_size_threshold
+        meets_file_age = file_modified_relative >= file_age_threshold
+
+        if not (meets_file_size and meets_file_age) and not IGNORE_FILE_SIZE_AND_AGE:
+            return False
+        else:
+            return True
+
+    return set(filter(filter_videos, video_files))
+
+
+def match_video_with_vod(file_path, file_modified_time, twitch_vods):
+    for video in twitch_vods:
+        vid_tstamp = twitch_api.get_video_timestamp(video)
+        vid_duration = twitch_api.get_video_duration(video)
+
+        # The start date and time of the VOD minus a bit of padding for margin of error
+        min_video_start_date = (vid_tstamp - config["file_modified_start_max_delta"])
+
+        # The end date and time of the VOD plus a bit of padding for margin of error
+        max_video_end_date = (vid_tstamp + (vid_duration + config["file_modified_end_max_delta"]))
+
+        # Check if the current VOD and video start and end near eachother
+        if file_modified_time >= min_video_start_date and file_modified_time < max_video_end_date:
+            return video
+
+    return None
 
 
 def get_twitch_vod_information():
@@ -389,26 +217,72 @@ def print_video_vod_info(message, video_path, video_modified, vod_title, vod_dat
     --- {message} ---
     | VOD ID:         {vod_id}
     | Video Path:     {video_path}
-    | VOD Title:      {vod_title}
+    | VOD Title:      {vod_title.encode('utf8')}
     | Video Modified: {video_modified}
     | VOD Timestamp:  {vod_date_created}\n""")
 
 
-def move_video_to_uploaded_folder(video_path):
-    os.rename(video_path, config["folder_to_move_completed_uploads"] + "/" + os.path.basename(video_path))
+def match_vods_only():
+    videos_needing_upload: dict = {}
+    videos_not_matched: list = []
+    videos_already_uploaded: list = []
+
+    twitch_videos = get_twitch_vod_information()
+    video_files: set = get_valid_videos_in_watch_folder()
+
+    folder_to_watch = config["folder_to_watch"]
+    file_count = len([
+        f for f in os.listdir(folder_to_watch)
+        if os.path.isfile(os.path.join(folder_to_watch, f)) and f.endswith(".mp4")
+    ])
+
+    for file_path in video_files:
+        file_modified_time = os.path.getmtime(file_path)
+        vod = match_video_with_vod(file_path, file_modified_time, twitch_videos)
+
+        if vod:
+            vod_tstamp = twitch_api.get_video_timestamp(vod)
+
+            if check_vod_uploaded(vod["id"]):
+                print_video_vod_info("VIDEO UPLOADED PREVIOUSLY", file_path, file_modified_time, vod["title"], vod_tstamp, vod["id"])
+                logger.info(f"Video was already uploaded: {vod['id']}. File will be moved to uploaded folder on the next real run.")
+                # move_video_to_uploaded_folder(file_path)
+                videos_already_uploaded.append(file_path)
+
+            elif file_path not in videos_needing_upload:
+                print_video_vod_info("ADDING VIDEO", file_path, file_modified_time, vod["title"], vod_tstamp, vod["id"])
+                videos_needing_upload[file_path] = vod
+        else:
+            videos_not_matched.append(file_path)
+
+    logger.info(f"{len(videos_needing_upload)}/{file_count} video(s) were added to upload queue")
+    logger.info(f"{len(videos_already_uploaded)}/{file_count} video(s) were already uploaded")
+
+    full_video_text = "\n    ".join(videos_not_matched)
+    logger.info(f"{len(videos_not_matched)}/{file_count} video(s) were not added to queue: \n    {full_video_text}")
+
+
+def main():
+    if DRY_RUN_ENABLED:
+        logger.warning("[DRY RUN] Dry run enabled. Nothing will be uploaded")
+        logger.warning("[DRY RUN] Dry run enabled. Nothing will be uploaded")
+
+    google = init_google_session()
+    for file_path, twitch_vod, upload_url in check_in_progress_uploads():
+        quick_upload_video(google, file_path, twitch_vod, upload_url, DRY_RUN_ENABLED=DRY_RUN_ENABLED)
+
+    logger.info("Watching recordings folder...")
+    watch_recordings_folder(google)
 
 
 if __name__ == "__main__":
 
     logger.info("Starting up...")
 
-    if DRY_RUN_ENABLED:
-        logger.warning("[DRY RUN] Dry run enabled. Nothing will be uploaded")
-        logger.warning("[DRY RUN] Dry run enabled. Nothing will be uploaded")
-
-    google = init_google_session()
-    check_in_progress_uploads(google)
-    watch_recordings_folder(google)
+    if MATCH_VODS_ONLY:
+        match_vods_only()
+    else:
+        main()
 
     # save_in_progress_upload("googleapis.com/1232847827381", ROOT_DIR + "/videos/vid.mp4", {
     #     "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
