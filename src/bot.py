@@ -255,11 +255,12 @@ def match_vods_only():
         else:
             videos_not_matched.append(file_path)
 
-    logger.info(f"{len(videos_needing_upload)}/{file_count} video(s) were added to upload queue")
-    logger.info(f"{len(videos_already_uploaded)}/{file_count} video(s) were already uploaded")
+    logger.info(f"{len(video_files)}/{file_count} valid MP4s")
+    logger.info(f"{len(videos_needing_upload)}/{len(video_files)} valid video(s) were added to upload queue")
+    logger.info(f"{len(videos_already_uploaded)}/{len(video_files)} valid video(s) were already uploaded")
 
     full_video_text = "\n    ".join(videos_not_matched)
-    logger.info(f"{len(videos_not_matched)}/{file_count} video(s) were not added to queue: \n    {full_video_text}")
+    logger.info(f"{len(videos_not_matched)}/{len(video_files)} valid video(s) were not added to queue: \n    {full_video_text}")
 
 
 def main():
