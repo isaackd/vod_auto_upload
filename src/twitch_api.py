@@ -88,16 +88,16 @@ def get_contract_release_time(video: dict):
 
 
 def datetime_to_iso(dt):
-    return dt.isoformat() + "Z"
+    return dt.isoformat() + ".0Z"
 
 
 if __name__ == '__main__':
-    # print(json.dumps(fetch_videos(), indent=4))
+    print(json.dumps(fetch_videos(), indent=4))
 
-    with open(ROOT_DIR + "/data/test_data.json", "r") as file:
-        data = json.loads(file.read())
-        vod = data[1]
-        print(datetime_to_iso(get_contract_release_time(vod)))
+    # with open(ROOT_DIR + "/data/test_data.json", "r") as file:
+    #     data = json.loads(file.read())
+    #     vod = data[1]
+    #     print(datetime_to_iso(get_contract_release_time(vod)))
         # for video in data:
         #     print(get_video_timestamp(video), video["created_at"])
         #     print(get_video_duration(video), video["duration"])
