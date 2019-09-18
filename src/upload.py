@@ -9,6 +9,8 @@ from state import save_in_progress_upload, remove_in_progress_upload
 from config import config
 from upload_categories import categories, get_formatted_metadata
 
+from twitch_api import get_contract_release_time, datetime_to_iso
+
 import logging
 logger = logging.getLogger()
 
@@ -56,6 +58,12 @@ def upload_video(google_session: dict, video_path: str, twitch_video: dict, vide
             "privacyStatus": video_privacy_status
         }
     }
+
+    if config["scheduled_upload_wait_time"] > 0:
+        contract_release_dt = get_contract_release_time(twitch_video)
+        release_iso = datetime_to_iso(contract_release_dt)
+        logger.info(f"Video will be scheduled to go public at {release_iso}")
+        video_meta["status"]["publishAt"] = release_iso
 
     if not DRY_RUN_ENABLED:
         try:
