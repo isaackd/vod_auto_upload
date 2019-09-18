@@ -7,7 +7,7 @@ import os
 import requests
 import json
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from config import config
 
@@ -52,7 +52,7 @@ def get_video_timestamp(video: dict) -> float:
     created_string = video["created_at"]
     # Parse the date string into a datetime object
     created_time = datetime.strptime(created_string, "%Y-%m-%dT%H:%M:%SZ")
-    return created_time.timestamp()
+    return created_time.replace(tzinfo=timezone.utc).timestamp()
 
 
 def get_video_duration(video: dict) -> int:
@@ -75,11 +75,25 @@ def get_video_duration(video: dict) -> int:
     return seconds
 
 
-if __name__ == '__main__':
-    print(json.dumps(fetch_videos(), indent=4))
+def get_contract_release_time(video: dict):
+    time_start = get_video_timestamp(video)
+    duration = get_video_duration(video)
 
-    # with open(ROOT_DIR + "/data/test_data.json", "r") as file:
-    #     data = json.loads(file.read())
-    #     for video in data:
-    #         print(get_video_timestamp(video), video["created_at"])
-    #         print(get_video_duration(video), video["duration"])
+    release_offset = config["scheduled_upload_wait_time"] * 60
+
+    time_end = time_start + duration + release_offset
+    date_end = datetime.utcfromtimestamp(time_end)
+
+    return date_end
+
+
+if __name__ == '__main__':
+    # print(json.dumps(fetch_videos(), indent=4))
+
+    with open(ROOT_DIR + "/data/test_data.json", "r") as file:
+        data = json.loads(file.read())
+        vod = data[1]
+        print(get_contract_release_time(vod))
+        # for video in data:
+        #     print(get_video_timestamp(video), video["created_at"])
+        #     print(get_video_duration(video), video["duration"])
