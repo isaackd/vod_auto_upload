@@ -63,7 +63,7 @@ def get_formatted_metadata(categories, vod_data):
             for val in game_meta[prop]:
                 formatted[prop].append(val.format(**vod_data))
 
-    return formatted
+    return (formatted, categories[game_name])
 
 
 categories = get_categories_file()
