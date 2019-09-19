@@ -100,13 +100,16 @@ def quick_upload_video(google_session: dict, video_path: str, twitch_video: dict
         logger.info(f"[PROGRESS] status: {status} {prog:.2f}%")
         # print(f"[PROGRESS] status: {status} {response.headers} {response.content}\nREQUEST HEADERS: {response.request.headers}")
 
-    video_snippet = get_formatted_metadata(categories, twitch_video)
+    video_snippet, category_data = get_formatted_metadata(categories, twitch_video)
 
     res = upload_video(google_session, video_path, twitch_video, video_snippet, progress_callback=prog, upload_url=upload_url, DRY_RUN_ENABLED=DRY_RUN_ENABLED)
     if res and res.status_code in (200, 201):
 
         res_json = res.json()
         logger.info(f"Final response: {res_json}")
+
+        if "thumbnail" in category_data:
+            set_video_thumbnail(google_session, res_json["id"], category_data["thumbnail"])
 
         title = res_json["snippet"]["title"]
         channel = res_json["snippet"]["channelTitle"]
@@ -120,3 +123,21 @@ def quick_upload_video(google_session: dict, video_path: str, twitch_video: dict
         move_video_to_uploaded_folder(video_path)
     else:
         logger.error(f"Unable to upload video: {video_path}")
+
+
+def set_video_thumbnail(google_session, video_id, thumbnail_path):
+    try:
+        thumbnail_file = open(thumbnail_path, "rb")
+        response = google_session.post(
+            "https://www.googleapis.com/upload/youtube/v3/thumbnails/set",
+            params={"videoId": video_id},
+            data=thumbnail_file
+        )
+
+        if response.ok:
+            logger.info(f"Successfully set thumbnail to {thumbnail_path} for video: {video_id}")
+        else:
+            logger.error(f"Unable to set thumbnail to {thumbnail_path} for video: {video_id}")
+
+    except FileNotFoundError:
+        logger.error(f"Unable find thumbnail file: {thumbnail_path}")
