@@ -193,7 +193,7 @@ def get_twitch_vod_information():
 
 
 def get_time_until_quota_reset():
-    """Calculates the amount of time until midnight Pacific Time (+ 10 minutes to be safe)"""
+    """Calculates the amount of time until midnight Pacific Time (+10 minutes to be safe)"""
 
     dt = datetime.now().astimezone(pacific_tz)
     quota_reset = (dt + timedelta(days=1)).replace(hour=0, minute=10, second=0).astimezone(pacific_tz)
@@ -284,12 +284,3 @@ if __name__ == "__main__":
         match_vods_only()
     else:
         main()
-
-    # save_in_progress_upload("googleapis.com/1232847827381", ROOT_DIR + "/videos/vid.mp4", {
-    #     "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
-    #     "description": "",
-    #     "url": "https://www.twitch.tv/videos/426700335",
-    #     "id": "426700335"
-    # })
-
-    # remove_in_progress_upload("426700335")
