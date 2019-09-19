@@ -128,3 +128,15 @@ def save_in_progress_upload(upload_url: str, video_path: str, twitch_vod: dict):
 
 def move_video_to_uploaded_folder(video_path):
     os.rename(video_path, config["folder_to_move_completed_uploads"] + "/" + os.path.basename(video_path))
+
+
+if __name__ == '__main__':
+    pass
+    # save_in_progress_upload("googleapis.com/1232847827381", ROOT_DIR + "/videos/vid.mp4", {
+    #     "title": "Speedrun of GTAV Classic% - what could possibly go wrong! (hint - everything) - !songrequest theme - Jazz & Blues",
+    #     "description": "",
+    #     "url": "https://www.twitch.tv/videos/426700335",
+    #     "id": "426700335"
+    # })
+
+    # remove_in_progress_upload("426700335")
