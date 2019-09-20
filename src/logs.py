@@ -1,6 +1,6 @@
 """
-Handles setting up the root logger so all modules can consistent
-formatting and filtering
+Handles setting up the root logger so all modules can have
+consistent log formatting and filtering.
 """
 
 import os

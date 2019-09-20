@@ -1,3 +1,5 @@
+"""Handles creating and loading the config file (data/config.json)."""
+
 import math
 import os
 import json
@@ -43,7 +45,9 @@ DEFAULT_CONFIG = {
     "file_modified_start_max_delta": 120,
     "file_modified_end_max_delta": 1_800,
     # how often we should call the Twitch API and fetch new VODs
-    "twitch_vod_refresh_rate": 3 * 60 * 60
+    "twitch_vod_refresh_rate": 3 * 60 * 60,
+    # how long to wait before making the video public (in minutes)
+    "scheduled_upload_wait_time": 1440
 }
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
