@@ -16,7 +16,13 @@ Automatically upload Twitch VODs to YouTube
 
 3. Update `data/config.json` with your credentials and corrected file paths
 
-4. Use `bot.py --dry-run` for testing (nothing will be uploaded)
+4. Use `bot.py --match-vods-only` to see which files are detected (nothing will be uploaded)
+
+### Arguments
+`bot.py` supports the following arguments:
+- `--match-vods-only`: Print which videos will be uploaded
+- `--dry-run`: Do everything except for actually uploading the videos
+- `--no-size-age`: Ignore video file size and last modified time
 
 ## Config
 For config options documentation, check out the [Wiki Page](https://github.com/afrmtbl/vod_auto_upload/wiki/Config-Documentation)

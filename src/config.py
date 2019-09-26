@@ -31,9 +31,8 @@ DEFAULT_CONFIG = {
 
     "folder_to_watch": DEFAULT_WATCH_FOLDER,
     "folder_to_move_completed_uploads": DEFAULT_WATCH_FOLDER + "/uploaded",
-    # check the folder for video files that can be uploaded every 10 seconds
-    # should be increased to around a minute after testing
-    "check_folder_interval": 10,
+    # check the folder for video files that can be uploaded every X seconds
+    "check_folder_interval": 300,
     # # Video files must be at least 1GiB to be uploaded
     "file_size_threshold": math.pow(1024, 3),
     # Video files must not have been modified for at least 5 minutes
