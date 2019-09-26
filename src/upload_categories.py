@@ -1,5 +1,6 @@
 import json
 import os
+from category_variables import generate_variables
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__ + "/.."))
 UPLOAD_CATEGORIES_PATH = ROOT_DIR + "/data/upload_categories.json"
@@ -54,6 +55,10 @@ def get_formatted_metadata(categories, vod_data):
     game_name = detect_vod_game(categories, vod_data)
     game_meta = categories[game_name]["metadata"]
 
+    gen_vars = generate_variables(vod_data)
+    if gen_vars:
+        vod_data.update(gen_vars)
+
     formatted = {}
     for prop in game_meta:
         if not isinstance(game_meta[prop], list):
@@ -68,7 +73,7 @@ def get_formatted_metadata(categories, vod_data):
 
 categories = get_categories_file()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_vod_data = {
         "id": "463953400",
         "user_id": "119434445",
@@ -86,3 +91,4 @@ if __name__ == '__main__':
         "duration": "2h31m1s"
     }
     print(get_formatted_metadata(categories, test_vod_data))
+    print(generate_variables(test_vod_data))
